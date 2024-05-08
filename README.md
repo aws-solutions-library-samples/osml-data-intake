@@ -1,215 +1,99 @@
-# Guidance Title (required)
+# OSML Data Intake
+## Overview
+This application facilitates the processing, conversion, and management of satellite imagery metadata in a Geographical Information System (GIS) environment. It leverages the gdal library and integrates with Amazon S3 for seamless storage and sharing. Below is an overview of the main features:
+Features:
 
-The Guidance title should be consistent with the title established first in Alchemy.
+### Image Metadata Processing
+Extracts and processes metadata from satellite imagery files, such as image dimensions and geographical coordinates.
+Generates auxiliary .aux and .ovr files for optimized image previews. Logs processing time and key events.
 
-**Example:** *Guidance for Product Substitutions on AWS*
+### STAC Item Generation
+Incorporates converted coordinates into STAC-compliant data formats for indexing and sharing geospatial information.
+Automatically handles data formatting and polygon creation.
 
-This title correlates exactly to the Guidance it’s linked to, including its corresponding sample code repository. 
+### S3 Output:
+Uploads auxiliary files and metadata to Amazon S3 using the boto3 SDK.
+Logs success and error messages for uploads to aid in debugging and auditing.
 
+### Table of Contents
+* [Getting Started](#getting-started)
+    * [Prerequisites](#prerequisites)
+    * [Installation Guide](#installation-guide)
+    * [Documentation](#documentation)
+* [Support & Feedback](#support--feedback)
+* [Security](#security)
+* [License](#license)
 
-## Table of Content (required)
 
-List the top-level sections of the README template, along with a hyperlink to the specific section.
+## Getting Started
+### Prerequisites
 
-### Required
+First, ensure you have installed the following tools locally
 
-1. [Overview](#overview-required)
-    - [Cost](#cost)
-2. [Prerequisites](#prerequisites-required)
-    - [Operating System](#operating-system-required)
-3. [Deployment Steps](#deployment-steps-required)
-4. [Deployment Validation](#deployment-validation-required)
-5. [Running the Guidance](#running-the-guidance-required)
-6. [Next Steps](#next-steps-required)
-7. [Cleanup](#cleanup-required)
+1. [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+2. [docker](https://nodejs.org/en)
+3. [tox](https://tox.wiki/en/latest/installation.html)
 
-***Optional***
+### Installation Guide
 
-8. [FAQ, known issues, additional considerations, and limitations](#faq-known-issues-additional-considerations-and-limitations-optional)
-9. [Revisions](#revisions-optional)
-10. [Notices](#notices-optional)
-11. [Authors](#authors-optional)
+1. Clone `osml-data-intake` package into your desktop
 
-## Overview (required)
+```sh
+git clone https://github.com/aws-solutions-library-samples/osml-data-intake.git
+```
 
-1. Provide a brief overview explaining the what, why, or how of your Guidance. You can answer any one of the following to help you write this:
+1. Run `tox` to create a virtual environment
 
-    - **Why did you build this Guidance?**
-    - **What problem does this Guidance solve?**
+```sh
+cd osml-data-intake
+tox
+```
 
-2. Include the architecture diagram image, as well as the steps explaining the high-level overview and flow of the architecture. 
-    - To add a screenshot, create an ‘assets/images’ folder in your repository and upload your screenshot to it. Then, using the relative file path, add it to your README. 
+### Documentation
 
-### Cost ( required )
+You can find documentation for this library in the `./doc` directory. Sphinx is used to construct a searchable HTML
+version of the API documents.
 
-This section is for a high-level cost estimate. Think of a likely straightforward scenario with reasonable assumptions based on the problem the Guidance is trying to solve. Provide an in-depth cost breakdown table in this section below ( you should use AWS Pricing Calculator to generate cost breakdown ).
+```shell
+tox -e docs
+```
 
-Start this section with the following boilerplate text:
+## Testing Your Setup
 
-_You are responsible for the cost of the AWS services used while running this Guidance. As of <month> <year>, the cost for running this Guidance with the default settings in the <Default AWS Region (Most likely will be US East (N. Virginia)) > is approximately $<n.nn> per month for processing ( <nnnnn> records )._
+After setting up your environment, you can verify your setup by sending a test message to the SNS topic that will trigger your application workflow. This is useful for ensuring that your processing pipeline works correctly with a given image.
 
-Replace this amount with the approximate cost for running your Guidance in the default Region. This estimate should be per month and for processing/serving resonable number of requests/entities.
+**Prerequisites:**
+- Ensure that your AWS credentials are configured properly in the environment.
+- Make sure that you have the AWS CLI installed and configured.
+- Deploy the image handler infrastructure using the [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws)
 
-Suggest you keep this boilerplate text:
-_We recommend creating a [Budget](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) through [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to help manage costs. Prices are subject to change. For full details, refer to the pricing webpage for each AWS service used in this Guidance._
+**Run the Test Command:**
 
-### Sample Cost Table ( required )
+1. Replace the following with your specific details:
+  - **Topic ARN**: Update the `--topic-arn` argument with the ARN of the SNS topic that triggers your application.
+  - **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the image file you want to test.
 
-**Note : Once you have created a sample cost table using AWS Pricing Calculator, copy the cost breakdown to below table and upload a PDF of the cost estimation on BuilderSpace.**
+1. Execute the following command, substituting your actual values:
 
-The following table provides a sample cost breakdown for deploying this Guidance with the default parameters in the US East (N. Virginia) Region for one month.
+    ```bash
+    python3 bin/local_cli.py --topic-arn <YOUR_TOPIC_ARN> --s3-uri <YOUR_S3_URI>
+    ```
 
-| AWS service  | Dimensions | Cost [USD] |
-| ----------- | ------------ | ------------ |
-| Amazon API Gateway | 1,000,000 REST API calls per month  | $ 3.50month |
-| Amazon Cognito | 1,000 active users per month without advanced security feature | $ 0.00 |
+2. **Expected Output**:
+  - This will trigger the processing of the specified image file in your application.
+  - Verify that the auxiliary files are generated and uploaded to your configured S3 bucket, and ensure that the logs indicate a successful run.
 
-## Prerequisites (required)
 
-### Operating System (required)
+## Support & Feedback
 
-- Talk about the base Operating System (OS) and environment that can be used to run or deploy this Guidance, such as *Mac, Linux, or Windows*. Include all installable packages or modules required for the deployment. 
-- By default, assume Amazon Linux 2/Amazon Linux 2023 AMI as the base environment. All packages that are not available by default in AMI must be listed out.  Include the specific version number of the package or module.
+To post feedback, submit feature ideas, or report bugs, please use the [Issues](https://github.com/aws-solutions-library-samples/osml-data-intake/issues) section of this GitHub repo.
 
-**Example:**
-“These deployment instructions are optimized to best work on **<Amazon Linux 2 AMI>**.  Deployment in another OS may require additional steps.”
+If you are interested in contributing to OversightML Model Runner, see the [CONTRIBUTING](CONTRIBUTING.md) guide.
 
-- Include install commands for packages, if applicable.
+## Security
 
+See [CONTRIBUTING](CONTRIBUTING.md) for more information.
 
-### Third-party tools (If applicable)
+## License
 
-*List any installable third-party tools required for deployment.*
-
-
-### AWS account requirements (If applicable)
-
-*List out pre-requisites required on the AWS account if applicable, this includes enabling AWS regions, requiring ACM certificate.*
-
-**Example:** “This deployment requires you have public ACM certificate available in your AWS account”
-
-**Example resources:**
-- ACM certificate 
-- DNS record
-- S3 bucket
-- VPC
-- IAM role with specific permissions
-- Enabling a Region or service etc.
-
-
-### aws cdk bootstrap (if sample code has aws-cdk)
-
-<If using aws-cdk, include steps for account bootstrap for new cdk users.>
-
-**Example blurb:** “This Guidance uses aws-cdk. If you are using aws-cdk for first time, please perform the below bootstrapping....”
-
-### Service limits  (if applicable)
-
-<Talk about any critical service limits that affect the regular functioning of the Guidance. If the Guidance requires service limit increase, include the service name, limit name and link to the service quotas page.>
-
-### Supported Regions (if applicable)
-
-<If the Guidance is built for specific AWS Regions, or if the services used in the Guidance do not support all Regions, please specify the Region this Guidance is best suited for>
-
-
-## Deployment Steps (required)
-
-Deployment steps must be numbered, comprehensive, and usable to customers at any level of AWS expertise. The steps must include the precise commands to run, and describe the action it performs.
-
-* All steps must be numbered.
-* If the step requires manual actions from the AWS console, include a screenshot if possible.
-* The steps must start with the following command to clone the repo. ```git clone xxxxxxx```
-* If applicable, provide instructions to create the Python virtual environment, and installing the packages using ```requirement.txt```.
-* If applicable, provide instructions to capture the deployed resource ARN or ID using the CLI command (recommended), or console action.
-
- 
-**Example:**
-
-1. Clone the repo using command ```git clone xxxxxxxxxx```
-2. cd to the repo folder ```cd <repo-name>```
-3. Install packages in requirements using command ```pip install requirement.txt```
-4. Edit content of **file-name** and replace **s3-bucket** with the bucket name in your account.
-5. Run this command to deploy the stack ```cdk deploy``` 
-6. Capture the domain name created by running this CLI command ```aws apigateway ............```
-
-
-
-## Deployment Validation  (required)
-
-<Provide steps to validate a successful deployment, such as terminal output, verifying that the resource is created, status of the CloudFormation template, etc.>
-
-
-**Examples:**
-
-* Open CloudFormation console and verify the status of the template with the name starting with xxxxxx.
-* If deployment is successful, you should see an active database instance with the name starting with <xxxxx> in        the RDS console.
-*  Run the following CLI command to validate the deployment: ```aws cloudformation describe xxxxxxxxxxxxx```
-
-
-
-## Running the Guidance (required)
-
-<Provide instructions to run the Guidance with the sample data or input provided, and interpret the output received.> 
-
-This section should include:
-
-* Guidance inputs
-* Commands to run
-* Expected output (provide screenshot if possible)
-* Output description
-
-
-
-## Next Steps (required)
-
-Provide suggestions and recommendations about how customers can modify the parameters and the components of the Guidance to further enhance it according to their requirements.
-
-
-## Cleanup (required)
-
-- Include detailed instructions, commands, and console actions to delete the deployed Guidance.
-- If the Guidance requires manual deletion of resources, such as the content of an S3 bucket, please specify.
-
-
-
-## FAQ, known issues, additional considerations, and limitations (optional)
-
-
-**Known issues (optional)**
-
-<If there are common known issues, or errors that can occur during the Guidance deployment, describe the issue and resolution steps here>
-
-
-**Additional considerations (if applicable)**
-
-<Include considerations the customer must know while using the Guidance, such as anti-patterns, or billing considerations.>
-
-**Examples:**
-
-- “This Guidance creates a public AWS bucket required for the use-case.”
-- “This Guidance created an Amazon SageMaker notebook that is billed per hour irrespective of usage.”
-- “This Guidance creates unauthenticated public API endpoints.”
-
-
-Provide a link to the *GitHub issues page* for users to provide feedback.
-
-
-**Example:** *“For any feedback, questions, or suggestions, please use the issues tab under this repo.”*
-
-## Revisions (optional)
-
-Document all notable changes to this project.
-
-Consider formatting this section based on Keep a Changelog, and adhering to Semantic Versioning.
-
-## Notices (optional)
-
-Include a legal disclaimer
-
-**Example:**
-*Customers are responsible for making their own independent assessment of the information in this Guidance. This Guidance: (a) is for informational purposes only, (b) represents AWS current product offerings and practices, which are subject to change without notice, and (c) does not create any commitments or assurances from AWS and its affiliates, suppliers or licensors. AWS products or services are provided “as is” without warranties, representations, or conditions of any kind, whether express or implied. AWS responsibilities and liabilities to its customers are controlled by AWS agreements, and this Guidance is not part of, nor does it modify, any agreement between AWS and its customers.*
-
-
-## Authors (optional)
-
-Name of code contributors
+MIT No Attribution Licensed. See [LICENSE](LICENSE).

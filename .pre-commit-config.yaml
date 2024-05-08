@@ -1,0 +1,76 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        args: ["--line-length=125"]
+        types: [file, python]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--line-length=125", "--profile=black"]
+        types: [file, python]
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        args: ["--ignore=E203,W503,W605", "--max-line-length=125"]
+        types: [file, python]
+
+  - repo: https://github.com/hhatto/autopep8
+    rev: v2.0.4
+    hooks:
+      - id: autopep8
+        types: [file, python]
+
+  - repo: https://github.com/aws-samples/automated-security-helper
+    rev: '1.1.0-e-01Dec2023' # update with the latest tagged version in the repository
+    hooks:
+      - id: ash
+        stages: [ manual ]
+        # uncomment the line below if using "finch" on MacOS
+        # args: [ "-f" ]
+
+  - repo: https://github.com/sbrunner/pre-commit-copyright
+    rev: 0.7.0
+    hooks:
+      - id: copyright
+        name: update copyright
+        exclude: |
+          (?x)^(
+            doc/.*|
+            ^\..+|
+            .+\.md|
+            test/data/.*|
+            LICENSE|
+            tox.ini|
+            pyproject.toml|
+            setup.cfg|
+            setup.py|
+            py.typed
+          )$
+      - id: copyright-required
+        name: require copyright
+        exclude: |
+          (?x)^(
+            doc/.*|
+            ^\..+|
+            .+\.md|
+            test/data/.*|
+            LICENSE|
+            tox.ini|
+            pyproject.toml|
+            setup.cfg|
+            setup.py|
+            py.typed
+          )$
