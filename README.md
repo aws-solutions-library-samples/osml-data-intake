@@ -1,11 +1,15 @@
 # OSML Data Intake
 ## Overview
-This application facilitates the processing, conversion, and management of satellite imagery metadata in a Geographical Information System (GIS) environment. It leverages the gdal library and integrates with Amazon S3 for seamless storage and sharing. Below is an overview of the main features:
-Features:
+This application facilitates the processing, conversion,
+and management of satellite imagery metadata as part of the OversightML (OSML) framework
+and can be deployed as part of the OSML [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws).
+It leverages the gdal library and integrates with Amazon S3 for seamless storage
+and sharing to provide imagery metadata to other service components.
+Below is an overview of the main features:
 
 ### Image Metadata Processing
 Extracts and processes metadata from satellite imagery files, such as image dimensions and geographical coordinates.
-Generates auxiliary .aux and .ovr files for optimized image previews. Logs processing time and key events.
+Generates auxiliary .aux and .ovr files for optimized image previews.
 
 ### STAC Item Generation
 Incorporates converted coordinates into STAC-compliant data formats for indexing and sharing geospatial information.
@@ -65,7 +69,7 @@ After setting up your environment, you can verify your setup by sending a test m
 **Prerequisites:**
 - Ensure that your AWS credentials are configured properly in the environment.
 - Make sure that you have the AWS CLI installed and configured.
-- Deploy the image handler infrastructure using the [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws)
+- Deploy the osml-data-intake infrastructure using the [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws)
 
 **Run the Test Command:**
 
