@@ -29,8 +29,8 @@ class TestImageData(unittest.TestCase):
         are accurately determined.
         """
         self.assertEqual(self.image_data.source_file, "./test/data/small.tif")
-        self.assertEqual(self.image_data.aux_file, "./test/data/small.tif.aux.xml")
-        self.assertEqual(self.image_data.ovr_file, "./test/data/small.tif.ovr")
+        self.assertEqual(self.image_data.generate_aux_file(), "./test/data/small.tif.aux.xml")
+        self.assertEqual(self.image_data.generate_ovr_file(), "./test/data/small.tif.ovr")
         self.assertEqual(
             self.image_data.geo_polygon,
             [

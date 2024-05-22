@@ -1,5 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
-
+import json
 import unittest
 
 import boto3
@@ -33,17 +33,19 @@ class TestImageProcessor(unittest.TestCase):
         s3.create_bucket(Bucket=test_bucket)
         s3.upload_file("./test/data/small.tif", test_bucket, "small.tif")
 
-        # Create SNS topic
+        # Create an SNS topic
         sns = boto3.client("sns", region_name="us-east-1")
         response = sns.create_topic(Name=test_topic)
         sns_topic_arn = response["TopicArn"]
 
         # Mock the ImageProcessor
-        self.processor = ImageProcessor(message=f"s3://{test_bucket}/small.tif")
-        self.processor.stac_publisher.sns_client = sns
-        self.processor.stac_publisher.output_topic = sns_topic_arn
+        message = {"image_uri": f"s3://{test_bucket}/small.tif"}
+        self.processor = ImageProcessor(message=json.dumps(message))
+        self.processor.stac_manager.sns_manager.sns_client = sns
+        self.processor.stac_manager.sns_manager.output_topic = sns_topic_arn
         self.processor.s3_manager.s3_client = s3
         self.processor.s3_manager.output_bucket = test_bucket
+        self.processor.stac_manager.s3_manager = self.processor.s3_manager
 
     def test_process_success(self):
         """
@@ -60,9 +62,7 @@ class TestImageProcessor(unittest.TestCase):
         """
         Test the process method of ImageProcessor for a failure scenario.
         """
-        from aws.osml.data_intake.s3_manager import S3Url
-
-        self.processor.s3_url = S3Url("s3://invalid-bucket/invalid-image.tif")
+        self.processor.sns_request.image_uri = "s3://invalid-bucket/invalid-image.tif"
 
         # Run the process method
         response = self.processor.process()

@@ -7,44 +7,63 @@ from typing import Any, Dict
 from .image_data import ImageData
 from .lambda_logger import logger
 from .s3_manager import S3Manager, S3Url
-from .stac_publisher import StacPublisher
+from .sns_manager import SNSManager, SNSRequest
+from .stac_manager import STACManager
 
 # Retrieve environment variables
 OUTPUT_BUCKET = os.environ["OUTPUT_BUCKET"]
-OUTPUT_TOPIC = os.environ["OUTPUT_TOPIC"]
+OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
 
 
 class ImageProcessor:
     """
     Manages the entire image processing workflow in a serverless environment.
+
+    :param message: The incoming SNS request message.
     """
 
     def __init__(self, message: str) -> None:
         """
         Initialize an ImageProcessingLambda instance.
+
+        :param message: The incoming SNS request message.
+        :returns: None
         """
         self.s3_manager = S3Manager(OUTPUT_BUCKET)
-        self.stac_publisher = StacPublisher(OUTPUT_TOPIC)
-        self.s3_url = S3Url(message)
+        self.sns_manager = SNSManager(OUTPUT_TOPIC)
+        self.stac_manager = STACManager(self.sns_manager, self.s3_manager)
+        self.sns_request = SNSRequest(**json.loads(message))
 
     def process(self) -> Dict[str, Any]:
         """
         Process the incoming SNS message, download and process the image, and publish the results.
-        :return: A response indicating the status of the process.
+
+        :returns: A response indicating the status of the process.
         """
         try:
+            # Extract the S3 information from the URI
+            s3_url = S3Url(self.sns_request.image_uri)
+
             # Download the source image
-            self.s3_manager.download_file(self.s3_url)
+            file_path = self.s3_manager.download_file(s3_url)
 
             # Create the image metadata files
-            image_data = ImageData(self.s3_manager.file_path)
+            image_data = ImageData(file_path)
 
-            # Upload them to the S3
-            self.s3_manager.upload_file(image_data.ovr_file, ".OVR")
-            self.s3_manager.upload_file(image_data.aux_file, ".AUX")
+            # Generate and upload aux file
+            aux_file = image_data.generate_aux_file()
+            self.s3_manager.upload_file(aux_file, ".AUX")
 
-            # Publish the STAC item to the SNS topic
-            self.stac_publisher.publish_stac_item(self.s3_manager, image_data)
+            # Generate and upload .ovr file
+            ovr_file = image_data.generate_ovr_file()
+            self.s3_manager.upload_file(ovr_file, ".OVR")
+
+            # Publish the STAC item to the SNS topic if needed
+            if OUTPUT_TOPIC is not None:
+                self.stac_manager.publish_stac_item(image_data)
+
+            # Clean up the GDAL dataset
+            image_data.clean_dataset()
 
             # Return a response indicating success
             logger.info("Message processed successfully")

@@ -59,9 +59,9 @@ class TestS3Manager(unittest.TestCase):
 
         s3_url = S3Url("s3://output_bucket/test_download_file.txt")
         self.s3_client.put_object(Bucket=s3_url.bucket, Key=s3_url.key, Body=b"Hello world!")
-        self.s3_manager.download_file(s3_url)
+        file_path = self.s3_manager.download_file(s3_url)
 
-        with open(self.s3_manager.file_path, "rb") as f:
+        with open(file_path, "rb") as f:
             content = f.read()
         self.assertEqual(content, b"Hello world!")
 

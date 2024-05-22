@@ -76,9 +76,8 @@ class S3Manager:
         self.s3_client = boto3.client("s3")
         self.tmp_dir = "/tmp/images"
         self.s3_url: Optional[S3Url] = None
-        self.file_path: Optional[str] = ""
 
-    def download_file(self, s3_url: S3Url) -> None:
+    def download_file(self, s3_url: S3Url) -> str:
         """
         Download the object from S3 to the local `/tmp` directory.
 
@@ -103,7 +102,7 @@ class S3Manager:
         logger.debug(f"Downloading {s3_url.url} to {file_path}")
         try:
             self.s3_client.download_file(source_bucket, source_key, file_path)
-            self.file_path = file_path
+            return file_path
         except ClientError as err:
             detailed_error: Optional[str] = ""
             if err.response["Error"]["Code"] == "404":
@@ -126,8 +125,8 @@ class S3Manager:
         """
         try:
             key = self.strip(file_path)
-            logger.info(f"Uploading {file_type} file to s3://{self.output_bucket}/{key}")
             self.s3_client.upload_file(file_path, self.output_bucket, key)
+            logger.info(f"Uploaded {file_type} file to s3://{self.output_bucket}/{key}")
         except ClientError as err:
             logger.error(f"Failed to upload {file_type} file: {err}")
             raise err

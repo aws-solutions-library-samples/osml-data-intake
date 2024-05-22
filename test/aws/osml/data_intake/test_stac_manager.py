@@ -7,9 +7,9 @@ from moto import mock_aws
 
 
 @mock_aws
-class TestStacPublisher(unittest.TestCase):
+class TestSTACManager(unittest.TestCase):
     """
-    A test suite for the StacPublisher class in the AWS OSML data intake module.
+    A test suite for the STACManager class in the AWS OSML data intake module.
 
     Tests the functionality of publishing STAC items to an AWS SNS topic using mocked AWS services.
     """
@@ -18,14 +18,17 @@ class TestStacPublisher(unittest.TestCase):
         """
         Set up the test environment for StacPublisher tests.
         """
-        from aws.osml.data_intake.stac_publisher import StacPublisher
+        from aws.osml.data_intake.s3_manager import S3Manager
+        from aws.osml.data_intake.sns_manager import SNSManager
+        from aws.osml.data_intake.stac_manager import STACManager
 
         self.sns_client = boto3.client("sns", region_name="us-east-1")
         response = self.sns_client.create_topic(Name="MyTopic")
         self.sns_topic_arn = response["TopicArn"]
-
-        self.publisher = StacPublisher(output_topic=self.sns_topic_arn)
-        self.publisher.sns_client = self.sns_client
+        self.s3_manager = S3Manager("")
+        self.sns_manager = SNSManager(self.sns_topic_arn)
+        self.sns_manager.sns_client = self.sns_client
+        self.stac_manager = STACManager(self.sns_manager, self.s3_manager)
 
     def tearDown(self):
         """
@@ -46,9 +49,10 @@ class TestStacPublisher(unittest.TestCase):
         s3_url = S3Url("s3://output_bucket/test_download_file.txt")
         s3_manager = S3Manager("output-bucket")
         s3_manager.s3_url = s3_url
+        self.stac_manager.s3_manager = s3_manager
         image_data = ImageData("./test/data/small.tif")
 
-        self.publisher.publish_stac_item(s3_manager, image_data)
+        self.stac_manager.publish_stac_item(image_data)
 
     def test_publish_stac_item_failure(self):
         """
@@ -62,11 +66,12 @@ class TestStacPublisher(unittest.TestCase):
         s3_url = S3Url("s3://output_bucket/test_download_file.txt")
         s3_manager = S3Manager("output-bucket")
         s3_manager.s3_url = s3_url
+        self.stac_manager.s3_manager = s3_manager
         image_data = ImageData("./test/data/small.tif")
 
-        self.publisher.output_topic = "BadTopic"
+        self.stac_manager.sns_manager.output_topic = "BadTopic"
         with self.assertRaises(Exception):
-            self.publisher.publish_stac_item(s3_manager, image_data)
+            self.stac_manager.publish_stac_item(s3_manager, image_data)
 
 
 if __name__ == "__main__":
