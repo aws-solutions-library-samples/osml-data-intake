@@ -4,7 +4,7 @@
 import argparse
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import boto3
 
@@ -21,17 +21,17 @@ class RunCLI:
         self.sns_client: boto3.client = boto3.client("sns")
         self.logs_client: boto3.client = boto3.client("logs")
         self.lambda_client: boto3.client = boto3.client("lambda")
-        self.s3_uri: Optional[str] = s3_uri
+        self.message: Dict[str:Any] = {"image_uri": s3_uri}
         self.topic_arn: Optional[str] = topic_arn
         self.start_time: Optional[datetime] = datetime.now(timezone.utc)
         self.lambda_log_group = Optional[str]
 
     def publish_s3_uri(self):
         """
-        Publishes the S3 URI to the specified SNS topic.
+        Publishes the SNSRequest to the specified SNS topic.
         """
         try:
-            response = self.sns_client.publish(TopicArn=self.topic_arn, Message=self.s3_uri)
+            response = self.sns_client.publish(TopicArn=self.topic_arn, Message=self.message)
             print(f"Message published to topic {self.topic_arn}. Message ID: {response['MessageId']}")
             return response["MessageId"]
         except Exception as err:
