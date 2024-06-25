@@ -1,6 +1,6 @@
 #  Copyright 2023-2024 Amazon.com, Inc. or its affiliates.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import boto3
 from botocore.exceptions import ClientError
@@ -11,6 +11,7 @@ from .lambda_logger import logger
 @dataclass
 class SNSRequest:
     image_uri: str
+    collection_id: str = field(default="OSML")
 
 
 class SNSManager:

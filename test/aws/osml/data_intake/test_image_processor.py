@@ -1,4 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
+
 import json
 import unittest
 
@@ -25,6 +26,7 @@ class TestImageProcessor(unittest.TestCase):
         """
         from aws.osml.data_intake.image_processor import ImageProcessor
 
+        # Retrieve environment variables or set default values
         test_bucket = "test-bucket"
         test_topic = "test-topic"
 

@@ -52,7 +52,7 @@ class TestSTACManager(unittest.TestCase):
         self.stac_manager.s3_manager = s3_manager
         image_data = ImageData("./test/data/small.tif")
 
-        self.stac_manager.publish_stac_item(image_data)
+        self.stac_manager.publish_stac_item(image_data, "test_collection")
 
     def test_publish_stac_item_failure(self):
         """

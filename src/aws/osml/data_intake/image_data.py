@@ -26,7 +26,10 @@ class ImageData:
         self.dataset: Optional[gdal.Dataset] = None
         self.sensor_model: Optional[SensorModel] = None
         self.geo_polygon: Optional[List[List[float]]] = None
-        self.geo_bbox: Optional[List[float]] = None
+        self.geo_bbox: Optional[
+            tuple[float | int, float | int, float | int, float | int]
+            | tuple[float | int, float | int, float | int, float | int, float | int, float | int]
+        ] = None
         self.width: Optional[int] = None
         self.height: Optional[int] = None
         self.image_corners: Optional[List[List[float]]] = None
