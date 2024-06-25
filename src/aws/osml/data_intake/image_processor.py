@@ -2,6 +2,7 @@
 
 import json
 import os
+import traceback
 from typing import Any, Dict
 
 from .image_data import ImageData
@@ -58,37 +59,42 @@ class ImageProcessor:
             ovr_file = image_data.generate_ovr_file()
             self.s3_manager.upload_file(ovr_file, ".OVR")
 
-            # Publish the STAC item to the SNS topic if needed
-            if OUTPUT_TOPIC is not None:
-                self.stac_manager.publish_stac_item(image_data)
+            # Publish the STAC item to the SNS topic
+            self.stac_manager.publish_stac_item(image_data, self.sns_request.collection_id)
 
             # Clean up the GDAL dataset
             image_data.clean_dataset()
 
             # Return a response indicating success
-            logger.info("Message processed successfully")
-            return self.success_message()
+            return self.success_message("Message processed successfully")
 
         except Exception as err:
             # Return a response indicating failure
-            logger.error(err)
             return self.failure_message(err)
 
     @staticmethod
-    def success_message() -> Dict[str, Any]:
+    def success_message(message: str) -> Dict[str, Any]:
         """
         Returns a success message in the form of a dictionary, intended for an HTTP response.
 
+        :param message: The success message to send when complete.
         :returns: A dictionary with 'statusCode' set to 200 and a 'body' containing a success message.
         """
-        return {"statusCode": 200, "body": json.dumps("Message processed successfully")}
+        logger.info(message)
+        return {"statusCode": 200, "body": json.dumps(message)}
 
     @staticmethod
     def failure_message(e: Exception) -> Dict[str, Any]:
         """
-        Returns an error message in the form of a dictionary, intended for an HTTP response.
+        Returns an error message in the form of a dictionary, including a stack trace, intended for an HTTP response.
 
         :param e: The exception that triggered the failure.
-        :returns: A dictionary with 'statusCode' set to 400 and a 'body' containing the error message.
+        :returns: A dictionary with 'statusCode' set to 400 and a 'body' containing the error message and stack trace.
         """
-        return {"statusCode": 400, "body": json.dumps(str(e))}
+        # Log the error and stack trace
+        stack_trace = traceback.format_exc()
+        logger.error(f"Error creating STAC items: {e}\nStack trace: {stack_trace}")
+
+        # Return the error message and stack trace in the response
+        error_response = {"message": str(e), "stack_trace": stack_trace.splitlines()}
+        return {"statusCode": 400, "body": json.dumps(error_response)}

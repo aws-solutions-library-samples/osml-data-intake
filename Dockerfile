@@ -53,6 +53,7 @@ ADD . ${LAMBDA_TASK_ROOT}
 
 # Install the package into the base image
 RUN python -m pip install .
+RUN python -m pip install stac_fastapi.types
 
 # Set entry point
 CMD [ "bin/lambda_entry.handler" ]

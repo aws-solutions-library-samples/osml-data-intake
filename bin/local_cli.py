@@ -2,15 +2,16 @@
 
 
 import argparse
+import json
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import boto3
 
 
 class RunCLI:
-    def __init__(self, s3_uri: str, topic_arn: str) -> None:
+    def __init__(self, s3_uri: str, topic_arn: str, collection_id: Optional[str] = None) -> None:
         """
         Initializes the PublishMessage with S3 URI, SNS topic ARN, and start time.
 
@@ -21,10 +22,13 @@ class RunCLI:
         self.sns_client: boto3.client = boto3.client("sns")
         self.logs_client: boto3.client = boto3.client("logs")
         self.lambda_client: boto3.client = boto3.client("lambda")
-        self.message: Dict[str:Any] = {"image_uri": s3_uri}
         self.topic_arn: Optional[str] = topic_arn
         self.start_time: Optional[datetime] = datetime.now(timezone.utc)
         self.lambda_log_group = Optional[str]
+        if collection_id:
+            self.message: str = json.dumps({"image_uri": s3_uri, "collection_id": collection_id})
+        else:
+            self.message: str = json.dumps({"image_uri": s3_uri})
 
     def publish_s3_uri(self):
         """
@@ -120,6 +124,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Publish an S3 URI to an SNS topic and collect Lambda logs.")
     parser.add_argument("--s3-uri", required=True, help="S3 URI to publish as the SNS message.")
     parser.add_argument("--topic-arn", required=True, help="SNS topic ARN to publish to.")
+    parser.add_argument("--collection-id", required=False, help="The collection to place the item in.")
 
     args = parser.parse_args()
 
