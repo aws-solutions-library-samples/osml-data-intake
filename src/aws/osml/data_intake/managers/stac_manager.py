@@ -6,8 +6,9 @@ import uuid
 
 from stac_fastapi.types.stac import Item
 
-from .image_data import ImageData
-from .lambda_logger import logger
+from aws.osml.data_intake.image_data import ImageData
+from aws.osml.data_intake.utils import logger
+
 from .s3_manager import S3Manager
 from .sns_manager import SNSManager
 
@@ -33,7 +34,7 @@ class STACManager:
         self.s3_manager = s3_manager
         self.stac_catalog = stac_catalog
 
-    def publish_stac_item(self, image_data: ImageData, collection_id: str) -> None:
+    def construct_stac_item(self, image_data: ImageData, collection_id: str) -> None:
         """
         Create and publish a STAC item using the configured SNS manager.
 
@@ -75,6 +76,14 @@ class STACManager:
             }
         )
 
+        return stac_item
+
+    def publish_stac_item(self, stac_item) -> None:
+        """
+        Publish a STAC item using the configured SNS manager.
+
+        :raises ClientError: If publishing to SNS fails.
+        """
         message = json.dumps(stac_item)
         logger.info(f"Publishing STAC item: {message}")
         self.sns_manager.publish_message(message)

@@ -18,6 +18,7 @@ Uploads auxiliary files and metadata to Amazon S3 using the boto3 SDK. Logs succ
     * [Installation Guide](#installation-guide)
     * [Documentation](#documentation)
 * [Testing Your Setup](#testing-your-setup)
+* [Submitting a Bulk Ingest Job](#submitting-a-bulk-ingest-job)
 * [Support & Feedback](#support--feedback)
 * [Security](#security)
 * [License](#license)
@@ -69,7 +70,7 @@ After setting up your environment, you can verify your setup by sending a test m
 
 1. Replace the following with your specific details:
   - **Topic ARN**: Update the `--topic-arn` argument with the ARN of the SNS topic that triggers your application.
-  - **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the image file you want to test.
+  - **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the bucket or image file you want to test.
 
 2. Execute the following command, substituting your actual values:
 
@@ -81,6 +82,93 @@ After setting up your environment, you can verify your setup by sending a test m
   - This will trigger the processing of the specified image file in your application.
   - Verify that the auxiliary files are generated and uploaded to your configured S3 bucket, and ensure that the logs indicate a successful run.
 
+## Submitting a Bulk Ingest Job
+
+This workflow is tailored for efficiently processing large quantities of images stored in an S3 bucket and integrating them into a STAC catalog using AWS services. It is designed to streamline the ingestion process for thousands of images awaiting cataloging.
+
+**Prerequisites:**
+- Ensure AWS credentials are correctly configured.
+- Install and configure the AWS CLI.
+- Active STAC Catalog service.
+- S3 Input and Output Buckets configured.
+
+1. Build and push a Docker container to your ECR repository:
+
+```
+./scripts/build_upload_container.sh
+```
+
+2. Create an execution role using the following command:
+
+```
+aws iam create-role \
+    --role-name BulkIngestSageMakerExecutionRole \
+    --assume-role-policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "sagemaker.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+            }
+        ]
+    }' \
+    --description "Allows SageMaker to execute processing jobs and specific S3 actions." \
+    && aws iam attach-role-policy \
+        --role-name BulkIngestSageMakerExecutionRole \
+        --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess \
+    && aws iam attach-role-policy \
+        --role-name BulkIngestSageMakerExecutionRole \
+        --policy-arn arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+```
+
+Retrieve the full ARN of the custom SageMaker role:
+
+```
+aws iam get-role --role-name BulkIngestSageMakerExecutionRole --query 'Role.Arn' --output text
+```
+
+3. Execute the SageMaker Processing Job:
+
+```
+python ./bin/execute_sm_processing_job.py \
+    --s3-uri <S3 Input Bucket> \
+    --region <AWS Region> \
+    --output-bucket <S3 Output Bucket> \
+    --role-arn <SageMaker Execution Role ARN> \
+    --image-uri <Data Ingest Container URI> \
+    --stac-endpoint <STAC Catalog Endpoint>
+```
+
+Example command:
+
+```
+python ./bin/execute_sm_processing_job.py \
+    --s3-uri s3://test-images-bucket \
+    --region us-west-2 \
+    --output-bucket s3://<id>-output-bucket \
+    --role-arn arn:aws:iam::<id>:role/BulkIngestSageMakerExecutionRole \
+    --image-uri <id>.dkr.ecr.us-west-2.amazonaws.com/data-bulk-ingest-container:latest \
+    --stac-endpoint https://stac_endpoint.com/data-catalog/
+```
+
+4. Cleanup when completed:
+
+  - Delete Bulk Ingest Container
+
+    ```
+    aws ecr batch-delete-image --repository-name data-bulk-ingest-container --image-ids "$(aws ecr describe-images --repository-name data-bulk-ingest-container --query 'imageIds[*]' --output json)"
+
+    aws ecr delete-repository --repository-name data-bulk-ingest-container --force
+    ```
+
+  - Delete Custom Execution Role ARN
+
+    ```
+    aws iam delete-role --role-name SageMakerExecutionRole
+    ```
 
 ## Support & Feedback
 

@@ -25,22 +25,65 @@ class RunCLI:
         self.topic_arn: Optional[str] = topic_arn
         self.start_time: Optional[datetime] = datetime.now(timezone.utc)
         self.lambda_log_group = Optional[str]
-        if collection_id:
-            self.message: str = json.dumps({"image_uri": s3_uri, "collection_id": collection_id})
+        self.message: str = json.dumps(self.check_s3_uri(s3_uri, collection_id))
+
+    def check_s3_uri(self, s3_uri: str, collection_id: str):
+        """
+        Construct a message to submit to SNS Topic, if s3_uri is a bucket, construct a list of
+            objects to be sent to SNS topic.
+
+        :param s3_uri: The S3 URI of the file / bucket to publish to
+
+        :returns: A formatted message to be sent to SNS topic
+        """
+        if not s3_uri.startswith("s3://"):
+            raise ValueError("Invalid S3 URI")
+
+        uri_parts = s3_uri[5:].split("/", 1)
+        bucket_name = uri_parts[0]
+
+        if len(uri_parts) == 1:
+            message = []
+            bucket = self.s3_resource.Bucket(bucket_name)
+
+            all_objects = bucket.objects.all()
+            if all_objects:
+                for obj in all_objects:
+                    uri = f"s3://{bucket_name}/{obj.key}"
+                    if collection_id:
+                        message.append({"image_uri": uri, "collection_id": collection_id})
+            else:
+                print(f"The bucket, {bucket_name}, is empty.")
+
+            return message
         else:
-            self.message: str = json.dumps({"image_uri": s3_uri})
+            if collection_id:
+                return [{"image_uri": s3_uri, "collection_id": collection_id}]
+
+            return [{"image_uri": s3_uri}]
 
     def publish_s3_uri(self):
         """
         Publishes the SNSRequest to the specified SNS topic.
         """
-        try:
-            response = self.sns_client.publish(TopicArn=self.topic_arn, Message=self.message)
-            print(f"Message published to topic {self.topic_arn}. Message ID: {response['MessageId']}")
-            return response["MessageId"]
-        except Exception as err:
-            print(f"Failed to publish message: {err}")
-        raise
+        max_batch_size = 10  # Maximum number of messages per batch
+        message_ids = []
+
+        # Split messages into batches of max_batch_size
+        for i in range(0, len(self.messages), max_batch_size):
+            batch = self.messages[i : i + max_batch_size]
+            entries = [{"Id": str(i + j), "Message": json.dumps(message)} for j, message in enumerate(batch)]
+
+            try:
+                response = self.sns_client.publish_batch(TopicArn=self.topic_arn, PublishBatchRequestEntries=entries)
+                for result in response["Successful"]:
+                    print(f"Message ID {result['MessageId']} published successfully.")
+                    message_ids.append(result["MessageId"])
+                for result in response["Failed"]:
+                    print(f"Message failed to publish: {result['Message']}")
+            except Exception as err:
+                print(f"Failed to publish message: {err}")
+                raise
 
     def get_lambda_log_group(self) -> Optional[None]:
         """
@@ -125,8 +168,9 @@ if __name__ == "__main__":
     parser.add_argument("--s3-uri", required=True, help="S3 URI to publish as the SNS message.")
     parser.add_argument("--topic-arn", required=True, help="SNS topic ARN to publish to.")
     parser.add_argument("--collection-id", required=False, help="The collection to place the item in.")
+    parser.add_argument("--region", required=True, help="AWS region.", default="us-west-2")
 
     args = parser.parse_args()
 
-    sns_logger = RunCLI(args.s3_uri, args.topic_arn)
+    sns_logger = RunCLI(args.s3_uri, args.topic_arn, args.region, args.collection_id)
     sns_logger.run()

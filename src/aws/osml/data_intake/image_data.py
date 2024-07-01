@@ -1,4 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
+import os
 import time
 from math import ceil, degrees, log
 from typing import List, Optional
@@ -9,13 +10,13 @@ from aws.osml.gdal.gdal_utils import load_gdal_dataset
 from aws.osml.photogrammetry.coordinates import ImageCoordinate
 from aws.osml.photogrammetry.sensor_model import SensorModel
 
-from .lambda_logger import logger
+from .utils.logger import logger
 
 gdal.UseExceptions()
 
 
 class ImageData:
-    def __init__(self, source_file: str) -> None:
+    def __init__(self, source_file: str, output_path: str = None) -> None:
         """
         Initialize the ImageData object.
 
@@ -23,6 +24,7 @@ class ImageData:
         :returns: None
         """
         self.source_file = source_file
+        self.output_path = output_path if output_path else self.source_file
         self.dataset: Optional[gdal.Dataset] = None
         self.sensor_model: Optional[SensorModel] = None
         self.geo_polygon: Optional[List[List[float]]] = None
@@ -96,29 +98,29 @@ class ImageData:
         :param preview_size: The size of the preview to be generated.
         :returns: Path to the generated overview file.
         """
-        ovr_file = self.source_file + ".ovr"
+        ovr_file = self.output_path + ".ovr"
         min_side = min(self.width, self.height)
         num_overviews = ceil(log(min_side / preview_size) / log(2))
         overviews = [2**i for i in range(1, num_overviews + 1)] if num_overviews > 0 else []
         self.dataset.BuildOverviews("CUBIC", overviews)
         logger.info(f"Generated overview file {ovr_file}")
 
-        return self.source_file + ".ovr"
+        return ovr_file
 
     def generate_aux_file(self) -> str:
         """
         Generates an .aux file for the given dataset.
 
-        :returns: Path to the generated aux.xml file.
+        :returns: Path to the generated aux file.
         """
-        aux_file = self.source_file + ".aux.xml"
+        aux_file = self.output_path + ".aux.xml"
         logger.info(f"Calculating image statistics for {self.source_file}")
         start_time = time.perf_counter()
         temp_ds = gdal.Open(self.source_file)
         gdal.Info(temp_ds, stats=True, approxStats=True, computeMinMax=True, reportHistograms=True)
         del temp_ds
         end_time = time.perf_counter()
-        logger.info(f"Generated aux file in {end_time - start_time} seconds")
+        logger.info(f"Generated aux file, {aux_file} in {end_time - start_time} seconds")
 
         return aux_file
 
@@ -129,3 +131,12 @@ class ImageData:
         :returns: None
         """
         del self.dataset
+
+    def delete_files(self, files: List) -> None:
+        """
+        Cleans up the leftover files
+
+        :returns: None
+        """
+        for f in files:
+            os.remove(f)
