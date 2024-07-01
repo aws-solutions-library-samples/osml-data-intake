@@ -31,9 +31,9 @@ class TestImageProcessor(unittest.TestCase):
         test_topic = "test-topic"
 
         # Create S3 bucket and upload test image
-        s3 = boto3.client("s3", region_name="us-east-1")
-        s3.create_bucket(Bucket=test_bucket)
-        s3.upload_file("./test/data/small.tif", test_bucket, "small.tif")
+        s3 = boto3.resource("s3", region_name="us-east-1")
+        s3.meta.client.create_bucket(Bucket=test_bucket)
+        s3.meta.client.upload_file("./test/data/small.tif", test_bucket, "small.tif")
 
         # Create an SNS topic
         sns = boto3.client("sns", region_name="us-east-1")

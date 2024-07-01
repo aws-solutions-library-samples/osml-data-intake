@@ -3,5 +3,6 @@
 # Telling flake8 to not flag errors in this file. It is normal that these classes are imported but not used in an
 # __init__.py file.
 # flake8: noqa
-from .image_data import ImageData
-from .image_processor import ImageProcessor
+
+from .app_config import BotoConfig, ServiceConfig
+from .aws_services import initialize_aws_services

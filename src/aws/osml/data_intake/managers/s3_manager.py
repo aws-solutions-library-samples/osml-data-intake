@@ -2,13 +2,15 @@
 
 import os
 import shutil
+import traceback
 from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
+from boto3.resources.base import ServiceResource
 from botocore.exceptions import ClientError
 
-from .lambda_logger import logger
+from aws.osml.data_intake.utils import logger
 
 
 class S3Url:
@@ -66,24 +68,27 @@ class S3Manager:
     :returns: None
     """
 
-    def __init__(self, output_bucket: str) -> None:
+    def __init__(self, output_bucket: str, aws_s3: ServiceResource = None) -> None:
         """
         Initialize an S3Manager instance.
 
         :param output_bucket: The name of the S3 bucket used for uploads.
+        :param aws_s3: An optional pre-existing boto3 s3 resource to use.
         """
         self.output_bucket = output_bucket
-        self.s3_client = boto3.client("s3")
+        self.s3_client = aws_s3 if aws_s3 else boto3.resource("s3")
         self.tmp_dir = "/tmp/images"
         self.s3_url: Optional[S3Url] = None
 
-    def download_file(self, s3_url: S3Url) -> str:
+    def download_file(self, s3_url: S3Url, max_retries: int = 3) -> str:
         """
         Download the object from S3 to the local `/tmp` directory.
 
         :param s3_url: An object representing the S3 bucket and key for the source data.
-        :return: None
-        :raises ClientError: If downloading from S3 fails.
+        :param max_retries: The maximum number of retries to attempt if the download fails.
+
+        :return: the path to the downloaded imagery file
+
         :raises Exception: If any other error occurs during the download process.
         """
         # Clean up directory before we start processing
@@ -94,26 +99,45 @@ class S3Manager:
 
         # Extract metadata
         self.s3_url = s3_url
-        source_key: str = s3_url.key
         source_bucket: str = s3_url.bucket
+        source_key: str = s3_url.key
         file_path: str = f"{self.tmp_dir}/{source_key}"
 
         # Try and download the file
-        logger.debug(f"Downloading {s3_url.url} to {file_path}")
-        try:
-            self.s3_client.download_file(source_bucket, source_key, file_path)
-            return file_path
-        except ClientError as err:
-            detailed_error: Optional[str] = ""
-            if err.response["Error"]["Code"] == "404":
-                detailed_error = f"The {source_bucket} bucket does not exist!"
-            elif err.response["Error"]["Code"] == "403":
-                detailed_error = f"You do not have permission to access {source_bucket} bucket!"
-            error_message: str = f"S3 error: {err} {detailed_error}".strip()
-            logger.error(error_message)
-            raise err
-        except Exception as err:
-            raise err
+        logger.info(f"Downloading {s3_url.url} to {file_path}")
+
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                logger.info(f"Beginning download of {s3_url.url}")
+                self.s3_client.meta.client.download_file(source_bucket, source_key, file_path)
+                logger.info(f"Successfully download to {file_path}.")
+                error_message = None
+                return file_path
+
+            except ClientError as err:
+                detailed_error = ""
+                if err.response["Error"]["Code"] == "404":
+                    detailed_error = f"The {source_bucket} bucket does not exist!"
+                    logger.error(detailed_error)
+
+                elif err.response["Error"]["Code"] == "403":
+                    detailed_error = f"You do not have permission to access {source_bucket} bucket!"
+                    logger.error(detailed_error)
+
+                error_message = f"Data Intake Bulk cannot process your S3 request! Error={err} {detailed_error}".strip()
+                logger.error(error_message)
+                break
+
+            except Exception as err:
+                logger.error(f"S3 Download {err} / {traceback.format_exc()}")
+                error_message = f"Attempt {retry_count + 1}/{max_retries}: Something went wrong!"
+                logger.error(error_message)
+
+            retry_count += 1
+
+        if error_message:
+            raise Exception(error_message)
 
     def upload_file(self, file_path: str, file_type: str) -> None:
         """
@@ -125,7 +149,7 @@ class S3Manager:
         """
         try:
             key = self.strip(file_path)
-            self.s3_client.upload_file(file_path, self.output_bucket, key)
+            self.s3_client.meta.client.upload_file(file_path, self.output_bucket, key)
             logger.info(f"Uploaded {file_type} file to s3://{self.output_bucket}/{key}")
         except ClientError as err:
             logger.error(f"Failed to upload {file_type} file: {err}")

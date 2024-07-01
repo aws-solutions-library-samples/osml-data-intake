@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import boto3
 from botocore.exceptions import ClientError
 
-from .lambda_logger import logger
+from aws.osml.data_intake.utils import logger
 
 
 @dataclass

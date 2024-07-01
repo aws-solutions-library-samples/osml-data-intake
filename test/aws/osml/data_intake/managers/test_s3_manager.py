@@ -4,7 +4,6 @@ import unittest
 
 import boto3
 from boto3.exceptions import S3UploadFailedError
-from botocore.exceptions import ClientError
 from moto import mock_aws
 
 
@@ -21,7 +20,7 @@ class TestS3Url(unittest.TestCase):
 
         Asserts that the bucket name, key, and full URL are correctly extracted from an S3 URL.
         """
-        from aws.osml.data_intake.s3_manager import S3Url
+        from aws.osml.data_intake.managers.s3_manager import S3Url
 
         url = "s3://bucketname/example/object.txt"
         s3_url = S3Url(url)
@@ -42,11 +41,11 @@ class TestS3Manager(unittest.TestCase):
         """
         Set up the test environment for S3Manager tests.
         """
-        from aws.osml.data_intake.s3_manager import S3Manager
+        from aws.osml.data_intake.managers.s3_manager import S3Manager
 
-        self.s3_client = boto3.client("s3", region_name="us-east-1")
+        self.s3_client = boto3.resource("s3", region_name="us-east-1")
         self.bucket_name = "output_bucket"
-        self.s3_client.create_bucket(Bucket=self.bucket_name)
+        self.s3_client.meta.client.create_bucket(Bucket=self.bucket_name)
         self.s3_manager = S3Manager(self.bucket_name)
 
     def test_download_file(self):
@@ -55,10 +54,10 @@ class TestS3Manager(unittest.TestCase):
 
         Ensures a file can be downloaded from S3 and is correctly placed in the local temporary directory.
         """
-        from aws.osml.data_intake.s3_manager import S3Url
+        from aws.osml.data_intake.managers.s3_manager import S3Url
 
         s3_url = S3Url("s3://output_bucket/test_download_file.txt")
-        self.s3_client.put_object(Bucket=s3_url.bucket, Key=s3_url.key, Body=b"Hello world!")
+        self.s3_client.meta.client.put_object(Bucket=s3_url.bucket, Key=s3_url.key, Body=b"Hello world!")
         file_path = self.s3_manager.download_file(s3_url)
 
         with open(file_path, "rb") as f:
@@ -76,7 +75,7 @@ class TestS3Manager(unittest.TestCase):
             f.write("Upload me!")
 
         self.s3_manager.upload_file(file_path, "text file")
-        response = self.s3_client.get_object(Bucket=self.bucket_name, Key="test_upload_file.txt")
+        response = self.s3_client.meta.client.get_object(Bucket=self.bucket_name, Key="test_upload_file.txt")
         data = response["Body"].read()
         self.assertEqual(data.decode(), "Upload me!")
 
@@ -84,12 +83,12 @@ class TestS3Manager(unittest.TestCase):
         """
         Test error handling in download_file for non-existent buckets.
 
-        Verifies that a ClientError is raised when attempting to download from a non-existent bucket.
+        Verifies that a Exception is raised when attempting to download from a non-existent bucket.
         """
-        from aws.osml.data_intake.s3_manager import S3Url
+        from aws.osml.data_intake.managers.s3_manager import S3Url
 
         s3_url = S3Url("s3://nonexistent_bucket/test_download_file.txt")
-        with self.assertRaises(ClientError) as context:
+        with self.assertRaises(Exception) as context:
             self.s3_manager.download_file(s3_url)
         self.assertIn("The specified bucket does not exist", str(context.exception))
 

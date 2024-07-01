@@ -6,13 +6,13 @@ import traceback
 from typing import Any, Dict
 
 from .image_data import ImageData
-from .lambda_logger import logger
-from .s3_manager import S3Manager, S3Url
-from .sns_manager import SNSManager, SNSRequest
-from .stac_manager import STACManager
+from .managers.s3_manager import S3Manager, S3Url
+from .managers.sns_manager import SNSManager, SNSRequest
+from .managers.stac_manager import STACManager
+from .utils.logger import logger
 
 # Retrieve environment variables
-OUTPUT_BUCKET = os.environ["OUTPUT_BUCKET"]
+OUTPUT_BUCKET = os.getenv("OUTPUT_BUCKET")
 OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
 
 
@@ -60,7 +60,8 @@ class ImageProcessor:
             self.s3_manager.upload_file(ovr_file, ".OVR")
 
             # Publish the STAC item to the SNS topic
-            self.stac_manager.publish_stac_item(image_data, self.sns_request.collection_id)
+            stac_item = self.stac_manager.construct_stac_item(image_data, self.sns_request.collection_id)
+            self.stac_manager.publish_stac_item(stac_item)
 
             # Clean up the GDAL dataset
             image_data.clean_dataset()
