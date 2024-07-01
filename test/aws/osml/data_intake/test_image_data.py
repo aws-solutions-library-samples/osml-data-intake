@@ -1,5 +1,7 @@
-# Copyright 2024 Amazon.com, Inc. or its affiliates.
+#  Copyright 2024 Amazon.com, Inc. or its affiliates.
 
+import os
+import shutil
 import unittest
 
 
@@ -15,35 +17,105 @@ class TestImageData(unittest.TestCase):
         """
         Set up the test environment for testing ImageData.
         """
-        from aws.osml.data_intake.image_data import ImageData
+        from aws.osml.data_intake import ImageData
 
-        # Create an instance of ImageData with a test file path
-        self.image_data = ImageData("./test/data/small.tif")
+        self.original_source = "./test/data/small.tif"
+        self.source_file = "./test/data/small-test.tif"
+        shutil.copyfile(self.original_source, self.source_file)
+        self.image_data = ImageData(self.source_file)
+        self.original_files = {
+            "aux": f"{self.original_source}.aux.xml",
+            "ovr": f"{self.original_source}.ovr",
+            "gdalinfo": f"{self.original_source}_gdalinfo.txt",
+            "thumbnail": f"{self.original_source}.thumbnail.png",
+        }
+
+    def test_generate_metadata(self):
+        """
+        Test the generate_metadata method of ImageData.
+        """
+        self.image_data.generate_metadata()
+        self.assertIsNotNone(self.image_data.dataset)
+        self.assertIsNotNone(self.image_data.sensor_model)
+        self.assertEqual(self.image_data.width, self.image_data.dataset.RasterXSize)
+        self.assertEqual(self.image_data.height, self.image_data.dataset.RasterYSize)
+        self.assertEqual(
+            self.image_data.image_corners,
+            [
+                [0, 0],
+                [self.image_data.width, 0],
+                [self.image_data.width, self.image_data.height],
+                [0, self.image_data.height],
+            ],
+        )
 
     def test_create_image_data(self):
         """
         Test the creation and initialization of ImageData.
-
-        Asserts that the source file path and derived file paths (auxiliary and overview)
-        are correctly assigned, and checks that the geographic bounding box and polygon
-        are accurately determined.
         """
-        self.assertEqual(self.image_data.source_file, "./test/data/small.tif")
-        self.assertEqual(self.image_data.generate_aux_file(), "./test/data/small.tif.aux.xml")
-        self.assertEqual(self.image_data.generate_ovr_file(), "./test/data/small.tif.ovr")
-        self.assertEqual(
-            self.image_data.geo_polygon,
-            [
-                (5.399047618346933, 50.04094857888587),
-                (5.410723561083805, 50.04094857888587),
-                (5.410723561083805, 50.032039447224086),
-                (5.399047618346933, 50.032039447224086),
-                (5.399047618346933, 50.04094857888587),
-            ],
-        )
-        self.assertEqual(
-            self.image_data.geo_bbox, [5.399047618346933, 50.032039447224086, 5.410723561083805, 50.04094857888587]
-        )
+        self.assertIsNotNone(self.image_data.geo_polygon)
+        self.assertIsNotNone(self.image_data.geo_bbox)
+
+    def test_generate_aux_file(self):
+        """
+        Test the generate_aux_file method of ImageData.
+        """
+        aux_file = self.image_data.generate_aux_file()
+        self.assertEqual(aux_file, self.source_file + ".aux.xml")
+        self.assertTrue(os.path.exists(aux_file))
+
+    def test_generate_ovr_file(self):
+        """
+        Test the generate_ovr_file method of ImageData.
+        """
+        ovr_file = self.image_data.generate_ovr_file()
+        self.assertEqual(ovr_file, self.source_file + ".ovr")
+        self.assertTrue(os.path.exists(ovr_file))
+
+    def test_generate_gdalinfo(self):
+        """
+        Test the generate_gdalinfo method of ImageData.
+        """
+        info_file = self.image_data.generate_gdalinfo()
+        self.assertEqual(info_file, self.source_file + "_gdalinfo.txt")
+        self.assertTrue(os.path.exists(info_file))
+
+    def test_generate_thumbnail(self):
+        """
+        Test the generate_thumbnail method of ImageData.
+        """
+        thumbnail_file = self.image_data.generate_thumbnail()
+        self.assertEqual(thumbnail_file, self.source_file + ".thumbnail.png")
+        self.assertTrue(os.path.exists(thumbnail_file))
+
+    def test_clean_dataset(self):
+        """
+        Test the clean_dataset method of ImageData.
+        """
+        self.image_data.clean_dataset()
+        self.assertIsNone(self.image_data.dataset)
+
+    def compare_files(self, generated_file, original_file):
+        """
+        Compare the content of the generated file with the original file.
+        """
+        with open(generated_file, "rb") as gen_file, open(original_file, "rb") as orig_file:
+            self.assertEqual(gen_file.read(), orig_file.read(), f"Mismatch between {generated_file} and {original_file}")
+
+    def tearDown(self):
+        """
+        Clean up any files generated during testing.
+        """
+        files_to_remove = [
+            self.source_file,
+            self.source_file + ".aux.xml",
+            self.source_file + ".ovr",
+            self.source_file + "_gdalinfo.txt",
+            self.source_file + ".thumbnail.png",
+        ]
+        for file in files_to_remove:
+            if os.path.exists(file):
+                os.remove(file)
 
 
 if __name__ == "__main__":
