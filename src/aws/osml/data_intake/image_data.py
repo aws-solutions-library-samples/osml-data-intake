@@ -1,4 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
+import json
 import time
 from math import ceil, degrees, log
 from typing import List, Optional
@@ -22,6 +23,7 @@ class ImageData:
         :param source_file: The source image file path.
         :returns: None
         """
+        self.image_hash = None
         self.source_file = source_file
         self.dataset: Optional[gdal.Dataset] = None
         self.sensor_model: Optional[SensorModel] = None
@@ -111,6 +113,7 @@ class ImageData:
 
         :returns: Path to the generated aux.xml file.
         """
+        gdal.SetConfigOption("GDAL_PAM_ENABLED", "YES")
         aux_file = self.source_file + ".aux.xml"
         logger.info(f"Calculating image statistics for {self.source_file}")
         start_time = time.perf_counter()
@@ -122,10 +125,39 @@ class ImageData:
 
         return aux_file
 
+    def generate_gdalinfo(self) -> str:
+        """
+        Writes the full gdalinfo report to a text file.
+
+        :returns: None
+        """
+        info_file = self.source_file + "_gdalinfo.txt"
+        logger.info(f"Writing gdalinfo report to {info_file}")
+        with open(info_file, "w") as f:
+            gdal_info_report = json.dumps(gdal.Info(self.dataset, format="json"))
+            f.write(gdal_info_report)
+        logger.info(f"gdalinfo report written to {info_file}")
+
+        return info_file
+
+    def generate_thumbnail(self, width: int = 512, height: int = 512) -> str:
+        gdal.SetConfigOption("GDAL_PAM_ENABLED", "NO")
+        # Set the gdal options for Translate
+        translate_options = gdal.TranslateOptions(
+            format="PNG", width=width, height=height, outputType=gdal.GDT_Byte, creationOptions=["COMPRESS=NONE"]
+        )
+
+        # Generate and save the thumbnail as a PNG
+        thumbnail_file = self.source_file + ".thumbnail.png"
+
+        gdal.Translate(destName=thumbnail_file, srcDS=self.dataset, options=translate_options)
+        gdal.SetConfigOption("GDAL_PAM_ENABLED", "NO")
+        return thumbnail_file
+
     def clean_dataset(self) -> None:
         """
         Cleans up the dataset GDAL creates.
 
         :returns: None
         """
-        del self.dataset
+        self.dataset = None
