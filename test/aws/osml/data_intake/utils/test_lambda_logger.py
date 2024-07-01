@@ -4,7 +4,7 @@ import logging
 import unittest
 from unittest.mock import patch
 
-from aws.osml.data_intake.lambda_logger import get_logger  # Adjust this import as needed
+from aws.osml.data_intake.utils.logger import get_logger
 
 
 class TestLambdaLogger(unittest.TestCase):

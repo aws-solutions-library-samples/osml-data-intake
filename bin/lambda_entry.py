@@ -2,14 +2,14 @@
 
 from typing import Any, Dict
 
-from src.aws.osml.data_intake.image_processor import ImageProcessor
+from src.aws.osml.data_intake.processors.image_processor import ImageProcessor
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     The AWS Lambda handler function to process an event.
 
-    :param event: The event payload containing the SNS message.
+    :param event: The event payload contains the SNS message.
     :param context: The Lambda execution context (unused).
     :return: The response from the ImageProcessingLambda process.
     """

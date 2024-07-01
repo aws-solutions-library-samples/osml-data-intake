@@ -2,21 +2,20 @@
 
 import json
 import os
-import traceback
 from typing import Any, Dict
 
-from .image_data import ImageData
-from .lambda_logger import logger
-from .s3_manager import S3Manager, S3Url
-from .sns_manager import SNSManager, SNSRequest
-from .stac_manager import STACManager
+from src.aws.osml.data_intake.data.image_data import ImageData
+from src.aws.osml.data_intake.managers.s3_manager import S3Manager, S3Url
+from src.aws.osml.data_intake.managers.sns_manager import SNSManager, SNSRequest
+from src.aws.osml.data_intake.managers.stac_manager import STACManager
+from src.aws.osml.data_intake.processors.processor_base import ProcessorBase
 
 # Retrieve environment variables
 OUTPUT_BUCKET = os.environ["OUTPUT_BUCKET"]
 OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
 
 
-class ImageProcessor:
+class ImageProcessor(ProcessorBase):
     """
     Manages the entire image processing workflow in a serverless environment.
 
@@ -25,7 +24,7 @@ class ImageProcessor:
 
     def __init__(self, message: str) -> None:
         """
-        Initialize an ImageProcessingLambda instance.
+        Initialize an ImageProcessor instance.
 
         :param message: The incoming SNS request message.
         :returns: None
@@ -59,8 +58,12 @@ class ImageProcessor:
             ovr_file = image_data.generate_ovr_file()
             self.s3_manager.upload_file(ovr_file, ".OVR")
 
+            # Generate and upload thumbnail
+            thumbnail_file = image_data.generate_thumbnail()
+            self.s3_manager.upload_file(thumbnail_file, ".PNG")
+
             # Publish the STAC item to the SNS topic
-            self.stac_manager.publish_stac_item(image_data, self.sns_request.collection_id)
+            self.stac_manager.publish_image(image_data, self.sns_request.collection_id)
 
             # Clean up the GDAL dataset
             image_data.clean_dataset()
@@ -71,30 +74,3 @@ class ImageProcessor:
         except Exception as err:
             # Return a response indicating failure
             return self.failure_message(err)
-
-    @staticmethod
-    def success_message(message: str) -> Dict[str, Any]:
-        """
-        Returns a success message in the form of a dictionary, intended for an HTTP response.
-
-        :param message: The success message to send when complete.
-        :returns: A dictionary with 'statusCode' set to 200 and a 'body' containing a success message.
-        """
-        logger.info(message)
-        return {"statusCode": 200, "body": json.dumps(message)}
-
-    @staticmethod
-    def failure_message(e: Exception) -> Dict[str, Any]:
-        """
-        Returns an error message in the form of a dictionary, including a stack trace, intended for an HTTP response.
-
-        :param e: The exception that triggered the failure.
-        :returns: A dictionary with 'statusCode' set to 400 and a 'body' containing the error message and stack trace.
-        """
-        # Log the error and stack trace
-        stack_trace = traceback.format_exc()
-        logger.error(f"Error creating STAC items: {e}\nStack trace: {stack_trace}")
-
-        # Return the error message and stack trace in the response
-        error_response = {"message": str(e), "stack_trace": stack_trace.splitlines()}
-        return {"statusCode": 400, "body": json.dumps(error_response)}

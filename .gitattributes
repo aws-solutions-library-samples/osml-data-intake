@@ -1,3 +1,4 @@
 *.[tT][iI][fF] filter=lfs diff=lfs merge=lfs -image
 *.[oO][vV][rR] filter=lfs diff=lfs merge=lfs -text
-\test/data/small.tif.aux.xml filter=lfs diff=lfs merge=lfs -text
+test/data/small.tif.aux.xml filter=lfs diff=lfs merge=lfs -text
+test/data/small.tif.thumbnail.png filter=lfs diff=lfs merge=lfs -text

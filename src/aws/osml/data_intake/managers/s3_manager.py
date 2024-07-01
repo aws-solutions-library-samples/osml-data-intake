@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError
 
-from .lambda_logger import logger
+from src.aws.osml.data_intake.utils.logger import logger
 
 
 class S3Url:
@@ -62,7 +62,6 @@ class S3Manager:
     A class to manage S3 file downloads and uploads.
 
     :param output_bucket: The name of the S3 bucket used for uploads.
-    :param logger: The configured logger instance
     :returns: None
     """
 

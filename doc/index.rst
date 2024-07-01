@@ -1,8 +1,8 @@
 
-aws.osml.integ
+aws.osml.data_intake
 =====================
 
-This package contains the integration tests for OSML Tile Server application.
+This package contains the OSML Data Intake application.
 
 
 .. toctree::
