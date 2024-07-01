@@ -24,7 +24,7 @@ class TestImageProcessor(unittest.TestCase):
         creating an SNS topic, and initializing the ImageProcessor with
         a mock S3 image URL and mock AWS clients.
         """
-        from aws.osml.data_intake.image_processor import ImageProcessor
+        from aws.osml.data_intake.processors.image_processor import ImageProcessor
 
         # Retrieve environment variables or set default values
         test_bucket = "test-bucket"

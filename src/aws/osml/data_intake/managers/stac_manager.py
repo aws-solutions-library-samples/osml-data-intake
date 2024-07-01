@@ -1,13 +1,13 @@
 #  Copyright 2023-2024 Amazon.com, Inc. or its affiliates.
 
-import datetime
 import json
-import uuid
+from datetime import datetime, timezone
 
 from stac_fastapi.types.stac import Item
 
-from .image_data import ImageData
-from .lambda_logger import logger
+from src.aws.osml.data_intake.data.image_data import ImageData
+from src.aws.osml.data_intake.utils.logger import logger
+
 from .s3_manager import S3Manager
 from .sns_manager import SNSManager
 
@@ -33,7 +33,7 @@ class STACManager:
         self.s3_manager = s3_manager
         self.stac_catalog = stac_catalog
 
-    def publish_stac_item(self, image_data: ImageData, collection_id: str) -> None:
+    def publish_image(self, image_data: ImageData, collection_id: str) -> None:
         """
         Create and publish a STAC item using the configured SNS manager.
 
@@ -44,30 +44,39 @@ class STACManager:
         logger.info("Creating STAC item.")
         stac_item = Item(
             **{
-                "id": str(uuid.uuid4()),
+                "id": image_data.image_hash,
                 "collection": collection_id,
                 "type": "Feature",
                 "geometry": {"type": "Polygon", "coordinates": image_data.geo_polygon},
                 "bbox": image_data.geo_bbox,
                 "properties": {
-                    "datetime": str(datetime.datetime.now(datetime.timezone.utc)),
+                    "datetime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     "description": f"STAC Item for image {self.s3_manager.s3_url.url}",
                 },
                 "assets": {
-                    "sourceImage": {
+                    "data": {
                         "href": f"s3://{self.s3_manager.s3_url.bucket}/{self.s3_manager.s3_url.key}",
                         "title": "Source Image",
                         "type": "image/tiff",
+                        "roles": ["data"],
                     },
-                    "processedAux": {
+                    "aux": {
                         "href": f"s3://{self.s3_manager.output_bucket}/{self.s3_manager.s3_url.key}.aux",
                         "title": "Processed Auxiliary",
                         "type": "application/octet-stream",
+                        "roles": ["data"],
                     },
-                    "processedOvr": {
+                    "ovr": {
                         "href": f"s3://{self.s3_manager.output_bucket}/{self.s3_manager.s3_url.key}.ovr",
                         "title": "Processed Overview",
                         "type": "application/octet-stream",
+                        "roles": ["data"],
+                    },
+                    "thumbnail": {
+                        "href": f"s3://{self.s3_manager.output_bucket}/{self.s3_manager.s3_url.key}.png",
+                        "title": "Processed Thumbnail",
+                        "type": "image/png",
+                        "roles": ["thumbnail"],
                     },
                 },
                 "links": [{"href": self.stac_catalog, "rel": "self"}],

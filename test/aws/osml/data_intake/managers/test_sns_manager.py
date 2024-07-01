@@ -19,7 +19,9 @@ class TestSNSManager(unittest.TestCase):
 
         Creates an SNS topic and initializes the SNSManager instance with the topic ARN.
         """
-        from aws.osml.data_intake.sns_manager import SNSManager  # Adjust the import according to your file structure
+        from aws.osml.data_intake.managers.sns_manager import (  # Adjust the import according to your file structure
+            SNSManager,
+        )
 
         sns_client = boto3.client("sns", region_name="us-east-1")
         response = sns_client.create_topic(Name="MyTopic")
