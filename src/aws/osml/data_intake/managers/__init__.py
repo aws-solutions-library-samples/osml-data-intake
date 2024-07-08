@@ -6,4 +6,3 @@
 
 from .s3_manager import S3Manager, S3Url
 from .sns_manager import SNSManager, SNSRequest
-from .stac_manager import STACManager

@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# Allow files and directories
+!/setup.cfg
+!/setup.py
+!/pyproject.toml
+!/docker
+!/conda
+!/src

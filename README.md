@@ -1,16 +1,23 @@
 # OSML Data Intake
 
 ## Overview
-This application facilitates the processing, conversion, and management of satellite imagery metadata as part of the OversightML (OSML) framework and can be deployed as part of the OSML [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws). It leverages the GDAL library and integrates with Amazon S3 for seamless storage and sharing to provide imagery metadata to other service components. Below is an overview of the main features:
+This application facilitates the processing, conversion, and management of satellite imagery metadata as part of the
+OversightML (OSML) framework and can be deployed as part of the
+OSML [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws).
+It leverages the GDAL library and integrates with Amazon S3 for seamless storage and sharing to provide imagery
+metadata to other service components.
+Below is an overview of the main features:
 
-### Image Metadata Processing
-Extracts and processes metadata from satellite imagery files, such as image dimensions and geographical coordinates. Generates auxiliary .aux and .ovr files for optimized image previews.
+### Intake
+The intake processes metadata from satellite imagery files, such as image dimensions and geographical coordinates.
+Uploads auxiliary files and metadata to Amazon S3 and serves converted meta-data into STAC items on an SNS topic.
 
-### SpatioTemporal Asset Catalogs (STAC) Item Generation
-Incorporates converted coordinates into STAC-compliant data formats for indexing and sharing geospatial information. Automatically handles data formatting and polygon creation.
+### Ingest
+Ingests SpatioTemporal Asset Catalog (STAC) items placed on an SNS topic into via the STAC Fast API database logic.
 
-### S3 Output
-Uploads auxiliary files and metadata to Amazon S3 using the boto3 SDK. Logs success and error messages for uploads to aid in debugging and auditing.
+### STAC
+The STAC component powers a Fast API front end that allows for interacting with the OpenSearch database that houses
+the processed geospatial assets.
 
 ### Table of Contents
 * [Getting Started](#getting-started)
@@ -65,22 +72,84 @@ After setting up your environment, you can verify your setup by sending a test m
 - Make sure that you have the AWS CLI installed and configured.
 - Deploy the osml-data-intake infrastructure using the [guidance package](https://github.com/aws-solutions-library-samples/guidance-for-processing-overhead-imagery-on-aws)
 
+## Testing Data Intake
+
 **Run the Test Command:**
 
-1. Replace the following with your specific details:
-  - **Topic ARN**: Update the `--topic-arn` argument with the ARN of the SNS topic that triggers your application.
-  - **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the image file you want to test.
+1. Replace the following with your specific details: \
+  **Topic ARN**: Update the `--topic-arn` argument with the ARN of the SNS topic that triggers your application.\
+  **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the image file you want to test.
 
 2. Execute the following command, substituting your actual values:
-
     ```bash
-    python3 bin/local_cli.py --topic-arn <YOUR_TOPIC_ARN> --s3-uri <YOUR_S3_URI>
+    python3 bin/intake_cli.py --topic-arn <YOUR_TOPIC_ARN> --s3-uri <YOUR_S3_URI>
     ```
 
-3. **Expected Output**:
-  - This will trigger the processing of the specified image file in your application.
-  - Verify that the auxiliary files are generated and uploaded to your configured S3 bucket, and ensure that the logs indicate a successful run.
+3. Validate Expected Output:\
+  This will trigger the processing of the specified image file in your application.
+  Verify that the auxiliary files are generated and uploaded to your configured S3 bucket,
+  and ensure that the logs indicate a successful run.
 
+## Testing Data Catalog
+1. To put a test item directly in your STAC catalog, update the following command and run it with your endpoint:
+    ```bash
+    curl -X "POST" "<<YOUR_API_URL>>/data-catalog/collections" \
+         -H 'Content-Type: application/json; charset=utf-8' \
+         -H "Authorization: Bearer $TOKEN" \
+         -d $'{
+      "type": "Feature",
+      "stac_version": "1.0.0",
+      "id": "example-item",
+      "properties": {
+        "datetime": "2024-06-01T00:00:00Z",
+        "start_datetime": "2024-06-01T00:00:00Z",
+        "end_datetime": "2024-06-01T01:00:00Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-104.99404, 39.75621],
+            [-104.99404, 39.74575],
+            [-104.97342, 39.74575],
+            [-104.97342, 39.75621],
+            [-104.99404, 39.75621]
+          ]
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "http://example.com/catalog/example-item.json",
+          "type": "application/json"
+        },
+        {
+          "rel": "root",
+          "href": "http://example.com/catalog/catalog.json",
+          "type": "application/json"
+        }
+      ],
+      "assets": {
+        "thumbnail": {
+          "href": "http://example.com/thumbs/example-item.jpg",
+          "title": "Thumbnail",
+          "type": "image/jpeg"
+        },
+        "data": {
+          "href": "http://example.com/data/example-item.tif",
+          "title": "Geospatial Data",
+          "type": "image/tiff; application=geotiff"
+        }
+      },
+      "collection": "example-collection-3"
+    }'
+
+    ```
+
+2. To get your item run:
+```bash
+  curl -X "GET" "<<YOUR_API_URL>>/data-catalog/collections"`
+```
 
 ## Support & Feedback
 
