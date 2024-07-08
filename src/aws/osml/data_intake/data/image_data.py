@@ -1,4 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
+
 import json
 import time
 from math import ceil, degrees, log
@@ -34,7 +35,6 @@ class ImageData:
         self.width: Optional[int] = None
         self.height: Optional[int] = None
         self.image_corners: Optional[List[List[float]]] = None
-        self.geo_polygon: Optional[List[List[float]]] = None
         self.generate_metadata()
 
     def generate_metadata(self) -> None:
