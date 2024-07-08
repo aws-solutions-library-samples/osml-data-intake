@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError
 
-from src.aws.osml.data_intake.utils.logger import logger
+from ..utils import logger
 
 
 class S3Url:

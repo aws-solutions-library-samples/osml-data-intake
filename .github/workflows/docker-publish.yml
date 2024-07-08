@@ -5,7 +5,10 @@ on:
 
 env:
   REGISTRY: awsosml
-  IMAGE_NAME: ${{ github.event.repository.name }}
+  INGEST: ${{ github.event.repository.name }}_ingest
+  STAC: ${{ github.event.repository.name }}_stac
+  INTAKE: ${{ github.event.repository.name }}_intake
+
 
 jobs:
   docker-publish:
@@ -21,11 +24,33 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.INGEST }}
       - uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: docker/Dockerfile.ingest
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.STAC }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.stac
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.INTAKE }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.intake
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

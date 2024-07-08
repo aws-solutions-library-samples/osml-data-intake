@@ -4,11 +4,27 @@ on:
   workflow_call:
 
 jobs:
-  docker-build:
+  docker-build-intake:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
         lfs: 'true'
     - name: Build the Docker Container
-      run: docker build . --file Dockerfile --tag osml-data-intake:$(date +%s)
+      run: docker build . --file ./docker/Dockerfile.intake --tag osml-data-intake:$(date +%s)
+  docker-build-ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: 'true'
+      - name: Build the Docker Container
+        run: docker build . --file ./docker/Dockerfile.ingest --tag osml-data-ingest:$(date +%s)
+  docker-build-stac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: 'true'
+      - name: Build the Docker Container
+        run: docker build . --file ./docker/Dockerfile.stac --tag osml-stac-fastapi:$(date +%s)

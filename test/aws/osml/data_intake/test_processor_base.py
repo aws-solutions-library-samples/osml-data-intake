@@ -6,7 +6,7 @@ import unittest
 
 class TestProcessorBase(unittest.TestCase):
     def test_success_message(self):
-        from aws.osml.data_intake.processors.processor_base import ProcessorBase
+        from aws.osml.data_intake.processor_base import ProcessorBase
 
         message = "Processing completed successfully."
         expected_result = {"statusCode": 200, "body": json.dumps(message)}
@@ -16,7 +16,7 @@ class TestProcessorBase(unittest.TestCase):
         self.assertEqual(result, expected_result)
 
     def test_failure_message(self):
-        from aws.osml.data_intake.processors.processor_base import ProcessorBase
+        from aws.osml.data_intake.processor_base import ProcessorBase
 
         exception_message = "An error occurred during processing."
         mock_exception = Exception(exception_message)

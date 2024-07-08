@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import boto3
 from botocore.exceptions import ClientError
 
-from src.aws.osml.data_intake.utils.logger import logger
+from ..utils import logger
 
 
 @dataclass
@@ -35,11 +35,12 @@ class SNSManager:
         """
         Publish a message to the configured SNS topic.
 
-        :param message: The message to be published.
+        :param message: The STAC Item as a string to be published.
         :param subject: The subject of the message.
         :raises ClientError: If publishing to SNS fails.
         """
         try:
+            logger.info(f"Publishing STAC item: {message}")
             self.sns_client.publish(TopicArn=self.output_topic, Message=message, Subject=subject)
         except ClientError as err:
             logger.error(f"Failed to publish message: {err}")

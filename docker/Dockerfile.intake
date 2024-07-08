@@ -1,6 +1,6 @@
 # Copyright 2024 Amazon.com, Inc. or its affiliates.
 
-FROM public.ecr.aws/lambda/python:3.11 as osml_data_intake
+FROM public.ecr.aws/lambda/python:3.11 as intake
 
 # Build time arguments
 ARG BUILD_CERT=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
@@ -15,10 +15,10 @@ ARG PACKAGES="wget"
 # Give sudo permissions
 USER root
 
-# Configure, update, and refresh yum enviornment
+# Configure, update, and refresh yum environment
 RUN yum update -y && yum clean all && yum makecache
 
-# Install all our dependancies
+# Install all our dependencies
 RUN yum install -y $PACKAGES
 
 # Install Miniconda
@@ -32,7 +32,7 @@ RUN wget -c ${MINICONDA_URL} && \
 ENV PATH=/opt/conda/bin:$PATH
 
 # Copy conda ENV
-COPY environment.yml ${LAMBDA_TASK_ROOT}
+COPY conda/environment.yml ${LAMBDA_TASK_ROOT}
 
 # Install python with conda
 RUN conda env create -n ${CONDA_ENV_NAME} --file environment.yml
@@ -48,12 +48,10 @@ RUN mv /var/lang/bin/python3.11 /var/lang/bin/python3.11-clean && ln -sf /opt/co
 RUN conda clean -afy
 
 # Copy the function code to the LAMBDA_TASK_ROOT directory
-# This environment variable is provided by the lambda base image
 ADD . ${LAMBDA_TASK_ROOT}
 
 # Install the package into the base image
 RUN python -m pip install .
-RUN python -m pip install stac_fastapi.types
 
 # Set entry point
-CMD [ "bin/lambda_entry.handler" ]
+CMD ["aws.osml.data_intake.image_processor.handler"]

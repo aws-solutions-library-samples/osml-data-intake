@@ -5,7 +5,7 @@ import traceback
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from src.aws.osml.data_intake.utils.logger import logger
+from .utils import logger
 
 
 class ProcessorBase(ABC):
