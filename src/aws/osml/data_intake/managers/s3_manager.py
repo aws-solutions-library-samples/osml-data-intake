@@ -2,10 +2,12 @@
 
 import os
 import shutil
+import traceback
 from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
+from boto3.resources.base import ServiceResource
 from botocore.exceptions import ClientError
 
 from ..utils import logger
@@ -56,6 +58,24 @@ class S3Url:
         """
         return self._parsed.geturl()
 
+    @property
+    def prefix(self) -> str:
+        """
+        Get the prefix (directory path) from the S3 key, excluding the file name and extension.
+
+        :return: The prefix.
+        """
+        return os.path.dirname(self.key)
+
+    @property
+    def filename(self) -> str:
+        """
+        Get the filename with extension from the S3 key.
+
+        :return: The filename with extension.
+        """
+        return os.path.basename(self.key)
+
 
 class S3Manager:
     """
@@ -65,15 +85,15 @@ class S3Manager:
     :returns: None
     """
 
-    def __init__(self, output_bucket: str) -> None:
+    def __init__(self, output_bucket: str, aws_s3: ServiceResource = None, input_dir: str = "/tmp/images") -> None:
         """
         Initialize an S3Manager instance.
 
         :param output_bucket: The name of the S3 bucket used for uploads.
         """
-        self.output_bucket = output_bucket
-        self.s3_client = boto3.client("s3")
-        self.tmp_dir = "/tmp/images"
+        self.output_bucket = "s3://" + output_bucket if not output_bucket.startswith("s3://") else output_bucket
+        self.s3_client = aws_s3 if aws_s3 else boto3.resource("s3")
+        self.tmp_dir = input_dir
         self.s3_url: Optional[S3Url] = None
 
     def download_file(self, s3_url: S3Url) -> str:
@@ -81,8 +101,9 @@ class S3Manager:
         Download the object from S3 to the local `/tmp` directory.
 
         :param s3_url: An object representing the S3 bucket and key for the source data.
-        :return: None
-        :raises ClientError: If downloading from S3 fails.
+
+        :return: the path to the downloaded imagery file
+
         :raises Exception: If any other error occurs during the download process.
         """
         # Clean up directory before we start processing
@@ -93,14 +114,17 @@ class S3Manager:
 
         # Extract metadata
         self.s3_url = s3_url
-        source_key: str = s3_url.key
         source_bucket: str = s3_url.bucket
-        file_path: str = f"{self.tmp_dir}/{source_key}"
+        source_key: str = s3_url.key
+        source_filename: str = s3_url.filename
+        file_path: str = f"{self.tmp_dir}/{source_filename}"
 
         # Try and download the file
-        logger.debug(f"Downloading {s3_url.url} to {file_path}")
+        logger.info(f"Downloading {s3_url.url} to {file_path}")
         try:
-            self.s3_client.download_file(source_bucket, source_key, file_path)
+            logger.info(f"Beginning download of {s3_url.url}")
+            self.s3_client.meta.client.download_file(source_bucket, source_key, file_path)
+            logger.info(f"Successfully download to {file_path}.")
             return file_path
         except ClientError as err:
             detailed_error: Optional[str] = ""
@@ -110,9 +134,8 @@ class S3Manager:
                 detailed_error = f"You do not have permission to access {source_bucket} bucket!"
             error_message: str = f"S3 error: {err} {detailed_error}".strip()
             logger.error(error_message)
-            raise err
         except Exception as err:
-            raise err
+            logger.error(f"S3 Download {err} / {traceback.format_exc()}")
 
     def upload_file(self, file_path: str, file_type: str) -> None:
         """
@@ -124,11 +147,10 @@ class S3Manager:
         """
         try:
             key = self.strip(file_path)
-            self.s3_client.upload_file(file_path, self.output_bucket, key)
-            logger.info(f"Uploaded {file_type} file to s3://{self.output_bucket}/{key}")
+            self.s3_client.meta.client.upload_file(file_path, self.output_bucket.replace("s3://", ""), key)
+            logger.info(f"Uploaded {file_type} file to {self.output_bucket}/{key}")
         except ClientError as err:
             logger.error(f"Failed to upload {file_type} file: {err}")
-            raise err
 
     @staticmethod
     def strip(file_path: str) -> str:

@@ -1,6 +1,7 @@
 # Copyright 2024 Amazon.com, Inc. or its affiliates.
 
 import unittest
+from unittest.mock import patch
 
 import boto3
 from boto3.exceptions import S3UploadFailedError
@@ -28,6 +29,16 @@ class TestS3Url(unittest.TestCase):
         self.assertEqual(s3_url.bucket, "bucketname")
         self.assertEqual(s3_url.key, "example/object.txt")
         self.assertEqual(s3_url.url, url)
+        self.assertEqual(s3_url.prefix, "example")
+        self.assertEqual(s3_url.filename, "object.txt")
+
+    def test_key_with_query_string(self):
+        from aws.osml.data_intake.managers.s3_manager import S3Url
+
+        url = "s3://my-bucket/path/to/object?param1=value1&param2=value2"
+        s3_url = S3Url(url)
+        expected_key = "path/to/object?param1=value1&param2=value2"
+        self.assertEqual(s3_url.key, expected_key)
 
 
 @mock_aws
@@ -44,9 +55,9 @@ class TestS3Manager(unittest.TestCase):
         """
         from aws.osml.data_intake.managers.s3_manager import S3Manager
 
-        self.s3_client = boto3.client("s3", region_name="us-east-1")
+        self.s3_client = boto3.resource("s3", region_name="us-east-1")
         self.bucket_name = "output_bucket"
-        self.s3_client.create_bucket(Bucket=self.bucket_name)
+        self.s3_client.meta.client.create_bucket(Bucket=self.bucket_name)
         self.s3_manager = S3Manager(self.bucket_name)
 
     def test_download_file(self):
@@ -58,7 +69,7 @@ class TestS3Manager(unittest.TestCase):
         from aws.osml.data_intake.managers.s3_manager import S3Url
 
         s3_url = S3Url("s3://output_bucket/test_download_file.txt")
-        self.s3_client.put_object(Bucket=s3_url.bucket, Key=s3_url.key, Body=b"Hello world!")
+        self.s3_client.meta.client.put_object(Bucket=s3_url.bucket, Key=s3_url.key, Body=b"Hello world!")
         file_path = self.s3_manager.download_file(s3_url)
 
         with open(file_path, "rb") as f:
@@ -76,7 +87,7 @@ class TestS3Manager(unittest.TestCase):
             f.write("Upload me!")
 
         self.s3_manager.upload_file(file_path, "text file")
-        response = self.s3_client.get_object(Bucket=self.bucket_name, Key="test_upload_file.txt")
+        response = self.s3_client.meta.client.get_object(Bucket=self.bucket_name, Key="test_upload_file.txt")
         data = response["Body"].read()
         self.assertEqual(data.decode(), "Upload me!")
 
@@ -84,14 +95,53 @@ class TestS3Manager(unittest.TestCase):
         """
         Test error handling in download_file for non-existent buckets.
 
-        Verifies that a ClientError is raised when attempting to download from a non-existent bucket.
+        Verifies that a Exception is raised when attempting to download from a non-existent bucket.
         """
         from aws.osml.data_intake.managers.s3_manager import S3Url
 
         s3_url = S3Url("s3://nonexistent_bucket/test_download_file.txt")
-        with self.assertRaises(ClientError) as context:
+        s3_path = self.s3_manager.download_file(s3_url)
+        self.assertEqual(None, s3_path)
+
+    @patch("logging.Logger.error")
+    def test_download_file_404_error(self, mock_error):
+        from aws.osml.data_intake.managers.s3_manager import S3Url
+
+        with patch("boto3.s3.transfer.S3Transfer.download_file") as download_file:
+            download_file.side_effect = ClientError({"Error": {"Code": "404"}}, "unexpected")
+
+            s3_url = S3Url("s3://my-bucket/my-key")
             self.s3_manager.download_file(s3_url)
-        self.assertIn("The specified bucket does not exist", str(context.exception))
+
+            mock_error.assert_called_with(
+                "S3 error: An error occurred (404) when calling the unexpected operation: Unknown The "
+                + f"{s3_url.bucket} bucket does not exist!"
+            )
+
+    @patch("logging.Logger.error")
+    def test_download_file_403_error(self, mock_error):
+        from aws.osml.data_intake.managers.s3_manager import S3Url
+
+        with patch("boto3.s3.transfer.S3Transfer.download_file") as download_file:
+            download_file.side_effect = ClientError({"Error": {"Code": "403"}}, "unexpected")
+
+            s3_url = S3Url("s3://my-bucket/my-key")
+            self.s3_manager.download_file(s3_url)
+
+            mock_error.assert_called_with(
+                "S3 error: An error occurred (403) when calling the unexpected operation: Unknown You"
+                + " do not have permission to access "
+                + f"{s3_url.bucket} bucket!"
+            )
+
+    def test_download_file_exception_error(self):
+        from aws.osml.data_intake.managers.s3_manager import S3Url
+
+        with patch("boto3.s3.transfer.S3Transfer.download_file") as download_file:
+            download_file.side_effect = Exception("Unexpected")
+
+            s3_url = S3Url("s3://my-bucket/my-key")
+            self.s3_manager.download_file(s3_url)
 
     def test_upload_file_client_error(self):
         """

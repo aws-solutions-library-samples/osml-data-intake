@@ -19,21 +19,19 @@ from .managers import S3Manager, S3Url, SNSManager, SNSRequest
 from .processor_base import ProcessorBase
 from .utils import logger
 
-# Retrieve environment variables
-OUTPUT_BUCKET = os.environ["OUTPUT_BUCKET"]
-OUTPUT_TOPIC = os.environ["OUTPUT_TOPIC"]
-
 gdal.UseExceptions()
 
 
 class ImageData:
-    def __init__(self, source_file: str) -> None:
+    def __init__(self, source_file: str, image_hash: str = token_hex(16)) -> None:
         """
         Initialize the ImageData object.
 
         :param source_file: The source image file path.
+        :param image_hash: The hash of the image.
         :returns: None
         """
+        self.image_hash = image_hash
         self.source_file = source_file
         self.dataset: Optional[gdal.Dataset] = None
         self.sensor_model: Optional[SensorModel] = None
@@ -109,13 +107,40 @@ class ImageData:
         :returns: Path to the generated overview file.
         """
         ovr_file = self.source_file + ".ovr"
+
+        existing_overviews = self.dataset.GetRasterBand(1).GetOverviewCount()
+
+        new_full_path = None
+
+        if existing_overviews > 0:
+            logger.info("Existing internal overviews found.")
+            directory_path = os.path.dirname(self.source_file)
+            full_filename = os.path.basename(self.source_file)
+
+            new_filename = f"{os.path.splitext(full_filename)[0]}_translated{os.path.splitext(full_filename)[1]}"
+            new_full_path = os.path.join(directory_path, new_filename)
+            gdal.Translate(new_full_path, self.dataset, width=self.width, height=self.height, overviewLevel=0)
+
         min_side = min(self.width, self.height)
         num_overviews = ceil(log(min_side / preview_size) / log(2))
         overviews = [2**i for i in range(1, num_overviews + 1)] if num_overviews > 0 else []
-        self.dataset.BuildOverviews("CUBIC", overviews)
-        logger.info(f"Generated overview file {ovr_file}")
 
-        return self.source_file + ".ovr"
+        if overviews:
+            if new_full_path:
+                new_dataset, new_sensor_model = load_gdal_dataset(new_full_path)
+                ovr_file = new_full_path + ".ovr"
+                new_dataset.BuildOverviews("AVERAGE", overviews)
+
+                # Clean up
+                # self.delete_files([new_full_path])
+                new_dataset = None
+            else:
+                self.dataset.BuildOverviews("AVERAGE", overviews)
+            logger.info(f"Generated external overview file {ovr_file}")
+        else:
+            logger.info("No overviews to generate.")
+
+        return ovr_file
 
     def generate_aux_file(self) -> str:
         """
@@ -131,7 +156,7 @@ class ImageData:
         gdal.Info(temp_ds, stats=True, approxStats=True, computeMinMax=True, reportHistograms=True)
         del temp_ds
         end_time = time.perf_counter()
-        logger.info(f"Generated aux file in {end_time - start_time} seconds")
+        logger.info(f"Generated aux file, {aux_file} in {end_time - start_time} seconds")
 
         return aux_file
 
@@ -169,6 +194,7 @@ class ImageData:
 
         gdal.Translate(destName=thumbnail_file, srcDS=self.dataset, options=translate_options)
         gdal.SetConfigOption("GDAL_PAM_ENABLED", "NO")
+        logger.info(f"Generated Thumbnail file {thumbnail_file}")
         return thumbnail_file
 
     def generate_stac_item(self, s3_manager: S3Manager, collection_id: str = "OSML", stac_catalog: str = "") -> Item:
@@ -184,10 +210,10 @@ class ImageData:
         logger.info("Creating STAC item.")
         return Item(
             **{
-                "id": token_hex(),
+                "id": self.image_hash,
                 "collection": collection_id,
                 "type": "Feature",
-                "geometry": {"type": "Polygon", "coordinates": self.geo_polygon},
+                "geometry": {"type": "Polygon", "coordinates": [self.geo_polygon]},
                 "bbox": self.geo_bbox,
                 "properties": {
                     "datetime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -201,19 +227,19 @@ class ImageData:
                         "roles": ["data"],
                     },
                     "aux": {
-                        "href": f"s3://{s3_manager.output_bucket}/{s3_manager.s3_url.key}.aux",
+                        "href": f"{s3_manager.output_bucket}/{s3_manager.s3_url.key}.aux",
                         "title": "Processed Auxiliary",
                         "type": "application/octet-stream",
                         "roles": ["data"],
                     },
                     "ovr": {
-                        "href": f"s3://{s3_manager.output_bucket}/{s3_manager.s3_url.key}.ovr",
+                        "href": f"{s3_manager.output_bucket}/{s3_manager.s3_url.key}.ovr",
                         "title": "Processed Overview",
                         "type": "application/octet-stream",
                         "roles": ["data"],
                     },
                     "thumbnail": {
-                        "href": f"s3://{s3_manager.output_bucket}/{s3_manager.s3_url.key}.png",
+                        "href": f"{s3_manager.output_bucket}/{s3_manager.s3_url.key}.png",
                         "title": "Processed Thumbnail",
                         "type": "image/png",
                         "roles": ["thumbnail"],
@@ -232,6 +258,18 @@ class ImageData:
         """
         self.dataset = None
 
+    def delete_files(self, files: List) -> None:
+        """
+        Cleans up the leftover files
+        :returns: None
+        """
+        for f in files:
+            try:
+                os.remove(f)
+            except Exception as e:
+                logger.error(f"Unable to delete the file, {f}, error: {e}")
+                continue
+
 
 class ImageProcessor(ProcessorBase):
     """
@@ -247,8 +285,8 @@ class ImageProcessor(ProcessorBase):
         :param message: The incoming SNS request message.
         :returns: None
         """
-        self.s3_manager = S3Manager(OUTPUT_BUCKET)
-        self.sns_manager = SNSManager(OUTPUT_TOPIC)
+        self.s3_manager = S3Manager(os.environ["OUTPUT_BUCKET"])
+        self.sns_manager = SNSManager(os.environ["OUTPUT_TOPIC"])
         self.sns_request = SNSRequest(**json.loads(message))
 
     def process(self) -> Dict[str, Any]:

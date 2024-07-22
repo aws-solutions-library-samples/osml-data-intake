@@ -33,9 +33,9 @@ class TestImageProcessor(unittest.TestCase):
         test_topic = "test-topic"
 
         # Create S3 bucket and upload test image
-        s3 = boto3.client("s3", region_name="us-east-1")
-        s3.create_bucket(Bucket=test_bucket)
-        s3.upload_file("./test/data/small.tif", test_bucket, "small.tif")
+        s3 = boto3.resource("s3", region_name="us-east-1")
+        s3.meta.client.create_bucket(Bucket=test_bucket)
+        s3.meta.client.upload_file("./test/data/small.tif", test_bucket, "small.tif")
 
         # Create an SNS topic
         sns = boto3.client("sns", region_name="us-east-1")
@@ -43,8 +43,8 @@ class TestImageProcessor(unittest.TestCase):
         sns_topic_arn = response["TopicArn"]
 
         # Mock the ImageProcessor
-        message = {"image_uri": f"s3://{test_bucket}/small.tif"}
-        self.processor = ImageProcessor(message=json.dumps(message))
+        self.message = {"image_uri": f"s3://{test_bucket}/small.tif"}
+        self.processor = ImageProcessor(message=json.dumps(self.message))
         self.processor.sns_manager.sns_client = sns
         self.processor.sns_manager.output_topic = sns_topic_arn
         self.processor.s3_manager.s3_client = s3
@@ -73,7 +73,7 @@ class TestImageProcessor(unittest.TestCase):
 
         # Check the response
         self.assertEqual(response["statusCode"], 400)
-        self.assertIn("NoSuchBucket", response["body"])
+        self.assertIn("Unable to Load", response["body"])
 
 
 class TestImageData(unittest.TestCase):
@@ -177,9 +177,7 @@ class TestImageData(unittest.TestCase):
             self.source_file + "_gdalinfo.txt",
             self.source_file + ".thumbnail.png",
         ]
-        for file in files_to_remove:
-            if os.path.exists(file):
-                os.remove(file)
+        self.image_data.delete_files(files_to_remove)
 
 
 if __name__ == "__main__":
