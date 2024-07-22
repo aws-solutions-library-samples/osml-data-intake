@@ -9,7 +9,7 @@ line-length = 125
 profile = "black"
 line_length = 125
 known_first_party = ["aws.osml.*"]
-src_paths = ["src", "test"]
+src_paths = ["src", "test", "bin"]
 
 
 [tool.pytest.ini_options]

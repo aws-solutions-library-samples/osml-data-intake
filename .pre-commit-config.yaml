@@ -57,7 +57,9 @@ repos:
             pyproject.toml|
             setup.cfg|
             setup.py|
-            py.typed
+            py.typed|
+            bin/bulk/config/bulk_config_template.json|
+            bin/bulk/config/.gitignore
           )$
       - id: copyright-required
         name: require copyright
@@ -72,5 +74,7 @@ repos:
             pyproject.toml|
             setup.cfg|
             setup.py|
-            py.typed
+            py.typed|
+            bin/bulk/config/bulk_config_template.json|
+            bin/bulk/config/.gitignore
           )$

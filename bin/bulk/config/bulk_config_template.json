@@ -1,0 +1,35 @@
+{
+    "S3InputConfig": {
+      "LocalPath": "/opt/ml/processing/input",
+      "S3DataType": "ManifestFile",
+      "S3InputMode": "File",
+      "S3DataDistributionType": "ShardedByS3Key"
+    },
+    "S3OutputConfig": {
+      "LocalPath": "/opt/ml/processing/output",
+      "S3UploadMode": "Continuous"
+    },
+    "InstanceConfig": {
+      "ClusterConfig": {
+        "InstanceCount": 4,
+        "InstanceType": "ml.c5.4xlarge",
+        "VolumeSizeInGB": 100
+      },
+      "ThreadWorkers": 16,
+      "ImageUri": "<ECR Uri>/data-bulk-ingest-container:latest",
+      "RoleArn": "<ARN>/BulkIngestSageMakerExecutionRole"
+    },
+    "OpenSearchConfig": {
+      "ES_HOST":"<OS Endpoint>",
+      "ES_PORT": "443",
+      "ES_USE_SSL": "true",
+      "ES_VERIFY_CERTS": "true"
+    },
+    "CollectionId": "OSML",
+    "StacEndpoint": "",
+    "VpcConfig": {
+      "Subnets": [],
+      "SecurityGroupIds": []
+    },
+    "MaxRuntimeInSeconds": 432000
+  }

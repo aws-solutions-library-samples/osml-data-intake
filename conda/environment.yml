@@ -10,7 +10,8 @@ dependencies:
   - conda-forge::proj=9.3.1
   - conda-forge::pip=24.0
   - pip:
-      - awslambdaric==2.0.11
       - boto3==1.34.104
       - osml-imagery-toolkit==1.3.0
-      - stac_fastapi.types==2.5.5.post1
+      - stac_fastapi.types==3.0.0a3
+      - stac_fastapi.opensearch==3.0.0a2
+      - python-json-logger==2.0.7
