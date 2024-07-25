@@ -50,6 +50,9 @@ RUN conda clean -afy
 # Copy the function code to the LAMBDA_TASK_ROOT directory
 ADD . ${LAMBDA_TASK_ROOT}
 
+# Install the lambda manager into the conda python
+RUN python -m pip install awslambdaric
+
 # Install the package into the base image
 RUN python -m pip install .
 
