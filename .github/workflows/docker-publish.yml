@@ -7,7 +7,7 @@ env:
   REGISTRY: awsosml
   INGEST: ${{ github.event.repository.name }}-ingest
   STAC: ${{ github.event.repository.name }}-stac
-  INTAKE: ${{ github.event.repository.name }-intake
+  INTAKE: ${{ github.event.repository.name }}-intake
 
 
 jobs:
