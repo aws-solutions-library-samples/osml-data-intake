@@ -1,0 +1,56 @@
+data_intake.utils.app_config
+============================
+
+.. py:module:: data_intake.utils.app_config
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.utils.app_config.ServiceConfig
+   data_intake.utils.app_config.BotoConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: ServiceConfig
+
+   ServiceConfig is a dataclass meant to house the high-level configuration settings required for Data Intake Bulk to
+   operate that are provided through ENV variables. Note that required env parameters are enforced by the implied
+   schema validation as os.environ[] is used to fetch the values. Optional parameters are fetched using, os.getenv(),
+   which returns None.
+
+   The data schema is defined as follows:
+   aws_region:  (str) The AWS region where the Bulk Ingest is deployed.
+   sts_arn: (str) The ARN of the STS role to assume for running the Bulk Ingest.
+   max_conn_pool: (int) The maximum number of connections to maintain in the connection pool.
+
+
+   .. py:attribute:: aws_region
+      :type:  str
+
+
+   .. py:attribute:: sts_arn
+      :type:  str
+
+
+   .. py:attribute:: max_conn_pool
+      :type:  str
+
+
+.. py:class:: BotoConfig
+
+   BotoConfig is a dataclass meant to vend our application the set of boto client configurations required for
+       Data Intake Bulk
+
+   The data schema is defined as follows:
+   default:  (Config) the standard boto client configuration
+
+
+   .. py:attribute:: default
+      :type:  botocore.config.Config
+
+

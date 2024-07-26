@@ -1,0 +1,16 @@
+aws.osml.data\_intake.utils package
+===================================
+
+.. automodule:: aws.osml.data_intake.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   aws.osml.data_intake.utils.app_config
+   aws.osml.data_intake.utils.logger

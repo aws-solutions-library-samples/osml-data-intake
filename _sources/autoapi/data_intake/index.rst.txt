@@ -1,0 +1,28 @@
+data_intake
+===========
+
+.. py:module:: data_intake
+
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/data_intake/managers/index
+   /autoapi/data_intake/utils/index
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/data_intake/bulk_processor/index
+   /autoapi/data_intake/image_processor/index
+   /autoapi/data_intake/ingest_processor/index
+   /autoapi/data_intake/processor_base/index
+
+

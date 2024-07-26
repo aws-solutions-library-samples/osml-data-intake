@@ -1,0 +1,7 @@
+aws.osml.data\_intake.processor\_base module
+============================================
+
+.. automodule:: aws.osml.data_intake.processor_base
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,27 @@
+aws.osml.data\_intake package
+=============================
+
+.. automodule:: aws.osml.data_intake
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   aws.osml.data_intake.managers
+   aws.osml.data_intake.utils
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   aws.osml.data_intake.bulk_processor
+   aws.osml.data_intake.image_processor
+   aws.osml.data_intake.ingest_processor
+   aws.osml.data_intake.processor_base

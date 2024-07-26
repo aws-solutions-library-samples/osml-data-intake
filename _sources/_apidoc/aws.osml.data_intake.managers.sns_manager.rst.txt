@@ -1,0 +1,7 @@
+aws.osml.data\_intake.managers.sns\_manager module
+==================================================
+
+.. automodule:: aws.osml.data_intake.managers.sns_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
