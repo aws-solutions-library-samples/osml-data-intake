@@ -60,7 +60,9 @@ class TestBulkProcessor(unittest.TestCase):
     def test_generate_upload_files(self):
         from aws.osml.data_intake.managers import S3Url
 
-        image_data, s3_manager = self.bulk_processor.generate_upload_files(self.test_image)
+        mock_item_id = "mock_id"
+
+        image_data, s3_manager = self.bulk_processor.generate_upload_files(self.test_image, mock_item_id)
 
         self.assertEqual(image_data.width, 3376)
         self.assertEqual(image_data.height, 2576)
@@ -72,7 +74,7 @@ class TestBulkProcessor(unittest.TestCase):
         self.assertEqual(s3_manager.output_bucket, f"s3://{self.test_bucket}")
 
         # clean up empty folder
-        remove_folder = f"./test/data/{image_data.image_hash}"
+        remove_folder = f"./test/data/{mock_item_id}"
         if os.path.exists(remove_folder):
             os.removedirs(remove_folder)
 
@@ -89,8 +91,11 @@ class TestBulkProcessor(unittest.TestCase):
     @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.bulk_sync", new_callable=MagicMock)
     def test_bulk_add_image(self, mock_bulk_item, mock_info):
         mock_bulk_item.return_value.set_result(None)
-        self.bulk_processor.submit_bulk_data_catalog("test-collection", self.stac_items)  # stimulate bulk add
-        mock_info.assert_called_with(f"Successfully bulked {len(self.stac_items)} item(s) to STAC Catalog!")
+        mock_collection_name = "test-collection"
+        self.bulk_processor.submit_bulk_data_catalog(mock_collection_name, self.stac_items)  # stimulate bulk add
+        mock_info.assert_called_with(
+            f"Successfully bulk inserted {len(self.stac_items)} item(s) to the {mock_collection_name} collection!"
+        )
 
     @patch("logging.Logger.error")
     @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.bulk_sync", new_callable=MagicMock)

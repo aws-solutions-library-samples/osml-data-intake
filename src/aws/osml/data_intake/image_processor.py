@@ -5,7 +5,6 @@ import os
 import time
 from datetime import datetime, timezone
 from math import ceil, degrees, log
-from secrets import token_hex
 from typing import Any, Dict, List, Optional
 
 from osgeo import gdal
@@ -19,23 +18,23 @@ from .managers import S3Manager, S3Url, SNSManager, SNSRequest
 from .processor_base import ProcessorBase
 from .utils import logger
 
+os.environ["PROJ_LIB"] = "/opt/conda/envs/osml_data_intake/share/proj"
+
 gdal.UseExceptions()
 
 
 class ImageData:
-    def __init__(self, source_file: str, image_hash: str = token_hex(16)) -> None:
+    def __init__(self, source_file: str) -> None:
         """
         Initialize the ImageData object.
 
         :param source_file: The source image file path.
-        :param image_hash: The hash of the image.
         :returns: None
         """
-        self.image_hash = image_hash
         self.source_file = source_file
         self.dataset: Optional[gdal.Dataset] = None
         self.sensor_model: Optional[SensorModel] = None
-        self.geo_polygon: Optional[List[List[float]]] = None
+        self.geo_polygon: Optional[List[List[List[float]]]] = None
         self.geo_bbox: Optional[
             tuple[float | int, float | int, float | int, float | int]
             | tuple[float | int, float | int, float | int, float | int, float | int, float | int]
@@ -44,6 +43,9 @@ class ImageData:
         self.height: Optional[int] = None
         self.image_corners: Optional[List[List[float]]] = None
         self.generate_metadata()
+        self.aux_ext = ".aux.xml"
+        self.gdalinfo_ext = ".gdalinfo.json"
+        self.overview_ext = ".ovr"
 
     def generate_metadata(self) -> None:
         """
@@ -67,7 +69,8 @@ class ImageData:
 
     def calculate_geo_polygon(self) -> None:
         """
-        Calculates geographic coordinates from the given image corners.
+        Calculates geographic coordinates from the given image corners as a polygon
+            https://geojson.org/geojson-spec.html
 
         :returns: None
         """
@@ -76,7 +79,7 @@ class ImageData:
             world_coordinate = self.sensor_model.image_to_world(ImageCoordinate(corner))
             coordinates.append((degrees(world_coordinate.longitude), degrees(world_coordinate.latitude)))
         coordinates.append(coordinates[0])
-        self.geo_polygon = coordinates
+        self.geo_polygon = [coordinates]
 
     def calculate_bbox(self) -> None:
         """
@@ -84,18 +87,19 @@ class ImageData:
 
         :returns: None
         Example of polygon format:
-        polygon = [
+        polygon = [[
             [100.0, 0.0],    # First vertex
             [101.0, 0.0],    # Second vertex
             [101.0, 1.0],    # Third vertex
             [100.0, 1.0],    # Fourth vertex
             [100.0, 0.0]     # Closing vertex (same as first vertex)
-        ]
+        ]]
         """
-        min_lon = min(coord[0] for coord in self.geo_polygon)
-        min_lat = min(coord[1] for coord in self.geo_polygon)
-        max_lon = max(coord[0] for coord in self.geo_polygon)
-        max_lat = max(coord[1] for coord in self.geo_polygon)
+        coords = self.geo_polygon[0]
+        min_lon = min(coord[0] for coord in coords)
+        min_lat = min(coord[1] for coord in coords)
+        max_lon = max(coord[0] for coord in coords)
+        max_lat = max(coord[1] for coord in coords)
 
         self.geo_bbox = [min_lon, min_lat, max_lon, max_lat]
 
@@ -106,7 +110,7 @@ class ImageData:
         :param preview_size: The size of the preview to be generated.
         :returns: Path to the generated overview file.
         """
-        ovr_file = self.source_file + ".ovr"
+        ovr_file = self.source_file + self.overview_ext
 
         existing_overviews = self.dataset.GetRasterBand(1).GetOverviewCount()
 
@@ -128,11 +132,9 @@ class ImageData:
         if overviews:
             if new_full_path:
                 new_dataset, new_sensor_model = load_gdal_dataset(new_full_path)
-                ovr_file = new_full_path + ".ovr"
+                ovr_file = new_full_path + self.overview_ext
                 new_dataset.BuildOverviews("AVERAGE", overviews)
-
                 # Clean up
-                # self.delete_files([new_full_path])
                 new_dataset = None
             else:
                 self.dataset.BuildOverviews("AVERAGE", overviews)
@@ -149,7 +151,7 @@ class ImageData:
         :returns: Path to the generated aux.xml file.
         """
         gdal.SetConfigOption("GDAL_PAM_ENABLED", "YES")
-        aux_file = self.source_file + ".aux.xml"
+        aux_file = self.source_file + self.aux_ext
         logger.info(f"Calculating image statistics for {self.source_file}")
         start_time = time.perf_counter()
         temp_ds = gdal.Open(self.source_file)
@@ -166,54 +168,35 @@ class ImageData:
 
         :returns: The path the GDAL info file
         """
-        info_file = self.source_file + "_gdalinfo.txt"
+        info_file = self.source_file + self.gdalinfo_ext
         logger.info(f"Writing gdalinfo report to {info_file}")
         with open(info_file, "w") as f:
-            gdal_info_report = json.dumps(gdal.Info(self.dataset, format="json"))
+            options = gdal.InfoOptions(stats=True, reportHistograms=True, format="json")
+            gdal_info_report = json.dumps(gdal.Info(self.dataset, options=options))
             f.write(gdal_info_report)
         logger.info(f"gdalinfo report written to {info_file}")
 
         return info_file
 
-    def generate_thumbnail(self, width: int = 512, height: int = 512) -> str:
-        """
-        Generates a thumbnail image from a source image.
-
-        :param width: The width, in pixels, to assign the thumbnail.
-        :param height: The height, in pixels, to assign the thumbnail.
-        :returns: The path the generated thumbnail
-        """
-        gdal.SetConfigOption("GDAL_PAM_ENABLED", "NO")
-        # Set the gdal options for Translate
-        translate_options = gdal.TranslateOptions(
-            format="PNG", width=width, height=height, outputType=gdal.GDT_Byte, creationOptions=["COMPRESS=NONE"]
-        )
-
-        # Generate and save the thumbnail as a PNG
-        thumbnail_file = self.source_file + ".thumbnail.png"
-
-        gdal.Translate(destName=thumbnail_file, srcDS=self.dataset, options=translate_options)
-        gdal.SetConfigOption("GDAL_PAM_ENABLED", "NO")
-        logger.info(f"Generated Thumbnail file {thumbnail_file}")
-        return thumbnail_file
-
-    def generate_stac_item(self, s3_manager: S3Manager, collection_id: str = "OSML", stac_catalog: str = "") -> Item:
+    def generate_stac_item(self, s3_manager: S3Manager, item_id: str, collection_id: str, stac_catalog: str = "") -> Item:
         """
         Create and publish a STAC item using the configured SNS manager.
 
         :param: s3_manager: The s3 manager handling the source file.
-        :param: s3_manager: The collection_id to place the STAC Item in.
+        :param: collection_id: The ID of the STAC Item.
+        :param: collection_id: The collection_id to place the STAC Item in.
         :param: stac_catalog: The catalog the item is intended for.
         :returns: The generated STAC item.
         :raises ClientError: If publishing to SNS fails.
         """
         logger.info("Creating STAC item.")
+        key = s3_manager.s3_url.key
         return Item(
             **{
-                "id": self.image_hash,
+                "id": item_id,
                 "collection": collection_id,
                 "type": "Feature",
-                "geometry": {"type": "Polygon", "coordinates": [self.geo_polygon]},
+                "geometry": {"type": "Polygon", "coordinates": self.geo_polygon},
                 "bbox": self.geo_bbox,
                 "properties": {
                     "datetime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -221,28 +204,28 @@ class ImageData:
                 },
                 "assets": {
                     "data": {
-                        "href": f"s3://{s3_manager.s3_url.bucket}/{s3_manager.s3_url.key}",
+                        "href": f"s3://{s3_manager.s3_url.bucket}/{key}",
                         "title": "Source Image",
                         "type": "image/tiff",
                         "roles": ["data"],
                     },
                     "aux": {
-                        "href": f"{s3_manager.output_bucket}/{s3_manager.s3_url.key}.aux",
+                        "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.aux_ext}",
                         "title": "Processed Auxiliary",
-                        "type": "application/octet-stream",
+                        "type": "application/xml",
+                        "roles": ["data"],
+                    },
+                    "info": {
+                        "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.gdalinfo_ext}",
+                        "title": "GDAL Info",
+                        "type": "application/json",
                         "roles": ["data"],
                     },
                     "ovr": {
-                        "href": f"{s3_manager.output_bucket}/{s3_manager.s3_url.key}.ovr",
+                        "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.overview_ext}",
                         "title": "Processed Overview",
                         "type": "application/octet-stream",
                         "roles": ["data"],
-                    },
-                    "thumbnail": {
-                        "href": f"{s3_manager.output_bucket}/{s3_manager.s3_url.key}.png",
-                        "title": "Processed Thumbnail",
-                        "type": "image/png",
-                        "roles": ["thumbnail"],
                     },
                 },
                 "links": [{"href": stac_catalog, "rel": "self"}],
@@ -285,8 +268,8 @@ class ImageProcessor(ProcessorBase):
         :param message: The incoming SNS request message.
         :returns: None
         """
-        self.s3_manager = S3Manager(os.environ["OUTPUT_BUCKET"])
-        self.sns_manager = SNSManager(os.environ["OUTPUT_TOPIC"])
+        self.s3_manager = S3Manager(os.getenv("OUTPUT_BUCKET", None))
+        self.sns_manager = SNSManager(os.getenv("OUTPUT_TOPIC", None))
         self.sns_request = SNSRequest(**json.loads(message))
 
     def process(self) -> Dict[str, Any]:
@@ -306,20 +289,23 @@ class ImageProcessor(ProcessorBase):
             # Create the image metadata files
             image_data = ImageData(file_path)
 
-            # Generate and upload aux file
+            # Generate info, aux, and ovr files
+            info_file = image_data.generate_gdalinfo()
             aux_file = image_data.generate_aux_file()
-            self.s3_manager.upload_file(aux_file, ".AUX")
-
-            # Generate and upload .ovr file
             ovr_file = image_data.generate_ovr_file()
-            self.s3_manager.upload_file(ovr_file, ".OVR")
 
-            # Generate and upload thumbnail
-            thumbnail_file = image_data.generate_thumbnail()
-            self.s3_manager.upload_file(thumbnail_file, ".PNG")
+            # set the output folder to the item id
+            self.s3_manager.set_output_folder(self.sns_request.item_id)
+
+            # upload info, aux, ovr files file
+            self.s3_manager.upload_file(info_file, "GDAL INFO", {"ContentType": "application/json"})
+            self.s3_manager.upload_file(aux_file, "AUX", {"ContentType": "application/xml"})
+            self.s3_manager.upload_file(ovr_file, "OVR", {"ContentType": "image/tiff"})
 
             # Generate and publish the STAC item to the SNS topic
-            stac_item = image_data.generate_stac_item(self.s3_manager)
+            stac_item = image_data.generate_stac_item(
+                self.s3_manager, self.sns_request.item_id, self.sns_request.collection_id
+            )
             self.sns_manager.publish_message(json.dumps(stac_item))
 
             # Clean up the GDAL dataset

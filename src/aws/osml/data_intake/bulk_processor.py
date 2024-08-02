@@ -1,4 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
+
 import asyncio
 import json
 import logging
@@ -11,13 +12,13 @@ from typing import List, Optional, Tuple
 import boto3
 from boto3.resources.base import ServiceResource
 from botocore.exceptions import ClientError
-from stac_fastapi.opensearch.database_logic import DatabaseLogic, SyncSearchSettings
-from stac_fastapi.types.stac import Item
+from stac_fastapi.opensearch.database_logic import DatabaseLogic
+from stac_fastapi.types.errors import NotFoundError
+from stac_fastapi.types.stac import Collection, Item
 
 from aws.osml.data_intake.image_processor import ImageData
 from aws.osml.data_intake.managers.s3_manager import S3Manager, S3Url
-from aws.osml.data_intake.utils.app_config import BotoConfig
-from aws.osml.data_intake.utils.logger import AsyncContextFilter, logger
+from aws.osml.data_intake.utils import AsyncContextFilter, BotoConfig, ServiceConfig, get_minimal_collection_dict, logger
 
 
 class BulkProcessor:
@@ -46,30 +47,30 @@ class BulkProcessor:
         self.input_path = input_path
         self.output_path = output_path
         self.stac_endpoint = stac_endpoint
-        self.database = DatabaseLogic(SyncSearchSettings().create_client)
+        self.database = DatabaseLogic()
         self.failed_manifest_path = os.path.join(self.output_path, "failed_images_manifest.json")
 
-    def generate_upload_files(self, image: str) -> Tuple[ImageData, S3Manager]:
+    def generate_upload_files(self, image: str, image_id: str) -> Tuple[ImageData, S3Manager]:
         """
         Generate required files for the given image, upload generated files, and then delete
         the files once uploaded.
 
         :param image: Path or S3 URL of the image.
+        :param image_id: ID of the image.
 
         :return Tuple containing ImageData and S3Manager instance.
         """
-        image_hash = token_hex(16)
 
-        if image_hash:
-            AsyncContextFilter.set_context({"image_hash": image_hash})
-        else:
-            AsyncContextFilter.set_context({"image_hash": None})
+        AsyncContextFilter.set_context({"image_hash": image_id})
 
         s3_url = S3Url(image)
-        s3_manager = S3Manager(self.output_bucket, self.aws_s3, f"{self.input_path}/{image_hash}")
+        s3_manager = S3Manager(self.output_bucket, self.aws_s3, f"{self.input_path}/{image_id}")
+
+        # set the output folder to the id
+        s3_manager.set_output_folder(image_id)
 
         local_object_path = s3_manager.download_file(s3_url)
-        image_data = ImageData(local_object_path, image_hash)
+        image_data = ImageData(local_object_path)
 
         aux_file = image_data.generate_aux_file()
         s3_manager.upload_file(aux_file, ".AUX")
@@ -77,15 +78,12 @@ class BulkProcessor:
         ovr_file = image_data.generate_ovr_file()
         s3_manager.upload_file(ovr_file, ".OVR")
 
-        thumbnail_file = image_data.generate_thumbnail()
-        s3_manager.upload_file(thumbnail_file, ".PNG")
-
         # list files in the directory
         listDir = os.listdir(s3_manager.tmp_dir)
         logger.info(f"Files in the directory (generateFiles): {listDir}")
 
-        # Delete files then clean up dataset to reserve storage space
-        image_data.delete_files([local_object_path, aux_file, ovr_file, thumbnail_file])
+        # Delete files then clean up dataset to preserve storage space
+        image_data.delete_files([local_object_path, aux_file, ovr_file])
         image_data.clean_dataset()
 
         return image_data, s3_manager
@@ -117,9 +115,10 @@ class BulkProcessor:
         """
         async with semaphore:
             try:
-                image_data, s3_manager = self.generate_upload_files(image)
-                logger.info("Creating STAC item with ID")
-                stac_item = image_data.generate_stac_item(s3_manager, self.collection_id, self.stac_endpoint)
+                image_id = token_hex(16)
+                image_data, s3_manager = self.generate_upload_files(image, image_id)
+                logger.info(f"Creating STAC item with ID {image_id}")
+                stac_item = image_data.generate_stac_item(s3_manager, image_id, self.collection_id, self.stac_endpoint)
                 return stac_item
             except Exception as error:
                 error_details = {"image": image, "error": str(error), "internal_traceback": traceback.format_exc()}
@@ -138,11 +137,16 @@ class BulkProcessor:
         """
         try:
             AsyncContextFilter.set_context({"image_hash": None})
+            # Insert the STAC Items
             self.database.bulk_sync(collection_id, stac_items)
-            logger.info(f"Successfully bulked {len(stac_items)} item(s) to STAC Catalog!")
+            logger.info(f"Successfully bulk inserted {len(stac_items)} item(s) to the {collection_id} collection!")
         except Exception as error:
             logger.error(f"Unable to submit data catalog item... {error} / {traceback.format_exc()}")
-            raise (f"Unable to submit data catalog item... {error}")
+            raise Exception(f"Unable to submit data catalog item... {error}")
+
+    async def create_minimal_collection(self, collection_id: str) -> None:
+        collection = Collection(**get_minimal_collection_dict(collection_id))
+        await self.database.create_collection(collection)
 
 
 async def start_workers(image_batch: List[str], bulk_processor: BulkProcessor, max_workers: int) -> None:
@@ -158,6 +162,13 @@ async def start_workers(image_batch: List[str], bulk_processor: BulkProcessor, m
     semaphore = asyncio.Semaphore(max_workers)
     stac_items = []
     queue = asyncio.Queue()
+
+    # If the collection does not exist, create a minimal one.
+    try:
+        await bulk_processor.database.check_collection_exists(bulk_processor.collection_id)
+    except NotFoundError:
+        logger.info(f"{bulk_processor.collection_id} collection not found. Creating minimal collection.")
+        await bulk_processor.create_minimal_collection(bulk_processor.collection_id)
 
     async def worker():
         while True:
@@ -185,7 +196,7 @@ async def start_workers(image_batch: List[str], bulk_processor: BulkProcessor, m
     # Ensure all workers are stopped
     await asyncio.gather(*workers)
 
-    # Submit any remaining items
+    # Insert any remaining items to STAC catalog
     if stac_items:
         bulk_processor.submit_bulk_data_catalog(bulk_processor.collection_id, stac_items)
 
@@ -225,20 +236,12 @@ async def main() -> None:
     """
     This function is responsible for orchestrating the data intake process. It retrieves the necessary
     environment variables, initializes the AWS S3 resource, processes the manifest file, generate
-    ovr/aux/thumbnails, create STAC item, and publish to the Database Cluster
+    ovr/aux, create STAC item, and publish to the Database Cluster
 
     :returns: None
     """
-    s3_uri = os.getenv("S3_URI")
-    input_path = os.getenv("S3_INPUT_PATH")
-    output_path = os.getenv("S3_OUTPUT_PATH")
-    output_bucket = os.getenv("S3_OUTPUT_BUCKET")
-    stac_endpoint = os.getenv("STAC_ENDPOINT")
-    collection_id = os.getenv("COLLECTION_ID")
-    max_workers = int(os.getenv("THREAD_WORKERS"))
-    enable_debugging = os.getenv("ENABLE_DEBUGGING")
 
-    if enable_debugging:
+    if ServiceConfig.bulk_enable_debugging:
         logger.setLevel(logging.DEBUG)
 
     try:
@@ -246,11 +249,18 @@ async def main() -> None:
     except ClientError as err:
         sys.exit(f"Fatal error occurred while initializing AWS services. Exiting. {err}")
 
-    if input_path:
-        s3_list = process_manifest_file(aws_s3, input_path, s3_uri)
-        bulk_processor = BulkProcessor(aws_s3, output_path, output_bucket, stac_endpoint, collection_id, input_path)
+    if ServiceConfig.bulk_input_path:
+        s3_list = process_manifest_file(aws_s3, ServiceConfig.bulk_input_path, ServiceConfig.bulk_s3_uri)
+        bulk_processor = BulkProcessor(
+            aws_s3,
+            ServiceConfig.bulk_output_path,
+            ServiceConfig.bulk_output_bucket,
+            ServiceConfig.bulk_stac_endpoint,
+            ServiceConfig.bulk_collection_id,
+            ServiceConfig.bulk_input_path,
+        )
         if s3_list:
-            await start_workers(s3_list, bulk_processor, max_workers)
+            await start_workers(s3_list, bulk_processor, ServiceConfig.bulk_max_workers)
             await bulk_processor.database.client.close()
         else:
             logger.error("The manifest file is empty or not found.")

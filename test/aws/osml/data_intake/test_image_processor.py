@@ -43,7 +43,7 @@ class TestImageProcessor(unittest.TestCase):
         sns_topic_arn = response["TopicArn"]
 
         # Mock the ImageProcessor
-        self.message = {"image_uri": f"s3://{test_bucket}/small.tif"}
+        self.message = {"image_uri": f"s3://{test_bucket}/small.tif", "item_id": "test_id"}
         self.processor = ImageProcessor(message=json.dumps(self.message))
         self.processor.sns_manager.sns_client = sns
         self.processor.sns_manager.output_topic = sns_topic_arn
@@ -97,8 +97,7 @@ class TestImageData(unittest.TestCase):
         self.original_files = {
             "aux": f"{self.original_source}.aux.xml",
             "ovr": f"{self.original_source}.ovr",
-            "gdalinfo": f"{self.original_source}_gdalinfo.txt",
-            "thumbnail": f"{self.original_source}.thumbnail.png",
+            "gdalinfo": f"{self.original_source}.gdalinfo.json",
         }
 
     def test_generate_metadata(self):
@@ -148,16 +147,8 @@ class TestImageData(unittest.TestCase):
         Test the generate_gdalinfo method of ImageData.
         """
         info_file = self.image_data.generate_gdalinfo()
-        self.assertEqual(info_file, self.source_file + "_gdalinfo.txt")
+        self.assertEqual(info_file, self.source_file + ".gdalinfo.json")
         self.assertTrue(os.path.exists(info_file))
-
-    def test_generate_thumbnail(self):
-        """
-        Test the generate_thumbnail method of ImageData.
-        """
-        thumbnail_file = self.image_data.generate_thumbnail()
-        self.assertEqual(thumbnail_file, self.source_file + ".thumbnail.png")
-        self.assertTrue(os.path.exists(thumbnail_file))
 
     def test_clean_dataset(self):
         """
@@ -174,8 +165,7 @@ class TestImageData(unittest.TestCase):
             self.source_file,
             self.source_file + ".aux.xml",
             self.source_file + ".ovr",
-            self.source_file + "_gdalinfo.txt",
-            self.source_file + ".thumbnail.png",
+            self.source_file + ".gdalinfo.json",
         ]
         self.image_data.delete_files(files_to_remove)
 

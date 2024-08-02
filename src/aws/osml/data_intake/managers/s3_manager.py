@@ -95,6 +95,16 @@ class S3Manager:
         self.s3_client = aws_s3 if aws_s3 else boto3.resource("s3")
         self.tmp_dir = input_dir
         self.s3_url: Optional[S3Url] = None
+        self.output_folder = None
+
+    def set_output_folder(self, output_folder: str) -> None:
+        """
+        Set the output folder for the S3Manager
+
+        :param output_folder: The name of the output folder.
+        :return: None
+        """
+        self.output_folder = output_folder
 
     def download_file(self, s3_url: S3Url) -> str:
         """
@@ -137,17 +147,22 @@ class S3Manager:
         except Exception as err:
             logger.error(f"S3 Download {err} / {traceback.format_exc()}")
 
-    def upload_file(self, file_path: str, file_type: str) -> None:
+    def upload_file(self, file_path: str, file_type: str, upload_args=None) -> None:
         """
         Upload the specified file to the configured S3 bucket.
 
         :param file_path: The path to the file on the local system.
         :param file_type: The type of file being uploaded (for logging purposes).
+        :param upload_args: Optional arguments for boto3 ExtraArgs
         :raises ClientError: If uploading to S3 fails.
         """
+        if upload_args is None:
+            upload_args = {}
         try:
-            key = self.strip(file_path)
-            self.s3_client.meta.client.upload_file(file_path, self.output_bucket.replace("s3://", ""), key)
+            key = f"{self.output_folder}/{self.strip(file_path)}" if self.output_folder else self.strip(file_path)
+            self.s3_client.meta.client.upload_file(
+                file_path, self.output_bucket.replace("s3://", ""), key, ExtraArgs=upload_args
+            )
             logger.info(f"Uploaded {file_type} file to {self.output_bucket}/{key}")
         except ClientError as err:
             logger.error(f"Failed to upload {file_type} file: {err}")

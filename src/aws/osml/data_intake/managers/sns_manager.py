@@ -11,6 +11,7 @@ from ..utils import logger
 @dataclass
 class SNSRequest:
     image_uri: str
+    item_id: str
     collection_id: str = field(default="OSML")
 
 

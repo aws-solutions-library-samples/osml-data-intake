@@ -1,4 +1,5 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
+
 import asyncio
 import json
 import unittest
@@ -6,6 +7,22 @@ from unittest.mock import AsyncMock, patch
 
 import boto3
 from moto import mock_aws
+from stac_fastapi.types.stac import Item
+
+mock_message = json.dumps(
+    {
+        "id": "123",
+        "type": "Feature",
+        "properties": {},
+        "geometry": {},
+        "links": [],
+        "assets": {},
+        "bbox": [],
+        "stac_version": "1.0.0",
+        "stac_extensions": [],
+        "collection": "test-collection",
+    }
+)
 
 
 @mock_aws
@@ -22,28 +39,7 @@ class TestIngestProcessor(unittest.TestCase):
         Returns:
             dict: A dictionary representing the SNS event with a predefined message.
         """
-        return {
-            "Records": [
-                {
-                    "Sns": {
-                        "Message": json.dumps(
-                            {
-                                "id": "123",
-                                "type": "Feature",
-                                "properties": {},
-                                "geometry": {},
-                                "links": [],
-                                "assets": {},
-                                "bbox": [],
-                                "stac_version": "1.0.0",
-                                "stac_extensions": [],
-                                "collection": "test-collection",
-                            }
-                        )
-                    }
-                }
-            ]
-        }
+        return {"Records": [{"Sns": {"Message": mock_message}}]}
 
     def setUp(self):
         """
@@ -55,13 +51,19 @@ class TestIngestProcessor(unittest.TestCase):
         self.s3 = boto3.client("s3", region_name="us-east-1")
         self.s3.create_bucket(Bucket="test-bucket")
 
+    @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.check_collection_exists", new_callable=AsyncMock)
+    @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.prep_create_item", new_callable=AsyncMock)
     @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.create_item", new_callable=AsyncMock)
-    def test_handler_success(self, mock_create_item):
+    def test_handler_success(self, mock_create_item, mock_check_collection, mock_prep_item):
         """
         Test the handler function for a successful scenario.
         """
         from aws.osml.data_intake.ingest_processor import handler
 
+        mock_check_collection.return_value = asyncio.Future()
+        mock_check_collection.return_value.set_result(None)  # Simulate success
+        mock_prep_item.return_value = asyncio.Future()
+        mock_prep_item.return_value.set_result(Item(**json.loads(mock_message)))  # Simulate success
         mock_create_item.return_value = asyncio.Future()
         mock_create_item.return_value.set_result(None)  # Simulate success
 
@@ -71,12 +73,19 @@ class TestIngestProcessor(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertIn("successfully", json.loads(response["body"]))
 
+    @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.check_collection_exists", new_callable=AsyncMock)
+    @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.prep_create_item", new_callable=AsyncMock)
     @patch("stac_fastapi.opensearch.database_logic.DatabaseLogic.create_item", new_callable=AsyncMock)
-    def test_handler_failure(self, mock_create_item):
+    def test_handler_failure(self, mock_create_item, mock_check_collection, mock_prep_item):
         """
         Test the handler function for a unsuccessful scenario.
         """
         from aws.osml.data_intake.ingest_processor import handler
+
+        mock_check_collection.return_value = asyncio.Future()
+        mock_check_collection.return_value.set_result(None)  # Simulate success
+        mock_prep_item.return_value = asyncio.Future()
+        mock_prep_item.return_value.set_result(Item(**json.loads(mock_message)))  # Simulate success
 
         mock_create_item.side_effect = Exception("Database error")
 
