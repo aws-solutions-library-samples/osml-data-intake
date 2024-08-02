@@ -4,11 +4,13 @@ import asyncio
 import json
 from typing import Any, Dict
 
-from stac_fastapi.opensearch.database_logic import AsyncSearchSettings, DatabaseLogic
-from stac_fastapi.types.stac import Item
+from stac_fastapi.opensearch.database_logic import DatabaseLogic
+from stac_fastapi.types.errors import NotFoundError
+from stac_fastapi.types.stac import Collection, Item
 
+from .managers import SNSManager
 from .processor_base import ProcessorBase
-from .utils import logger
+from .utils import ServiceConfig, get_minimal_collection_dict, logger
 
 
 class IngestProcessor(ProcessorBase):
@@ -19,12 +21,15 @@ class IngestProcessor(ProcessorBase):
 
     def __init__(self, message: str):
         """
-        Initialize the STACProcessor with an OpenSearch client from AsyncSearchSettings.
+        Initialize the STACProcessor with an OpenSearch DatabaseLogic client.
 
         :param message: The incoming SNS request message.
         """
-        self.database = DatabaseLogic(AsyncSearchSettings().create_client)
+        self.database = DatabaseLogic()
         self.stac_item = Item(**json.loads(message))
+        self.sns_manager = (
+            SNSManager(ServiceConfig.stac_post_processing_topic) if ServiceConfig.stac_post_processing_topic else None
+        )
 
     async def process(self) -> Dict[str, Any]:
         """
@@ -35,16 +40,36 @@ class IngestProcessor(ProcessorBase):
         """
         try:
             # Here we assume 'item' includes necessary fields like 'id'
-            logger.info(f'Creating STAC item with ID {self.stac_item["id"]}.')
+            item_id = self.stac_item["id"]
+            collection_id = self.stac_item["collection"]
+            logger.info(f"Creating STAC item with ID {item_id} in collection {collection_id}.")
 
-            # Create a STAC item in the open search database
-            await self.database.create_item(self.stac_item)
+            # Create a STAC item in the open search database.
+            #  If the item collection does not exist, create a minimal one and then insert the item.
+            try:
+                await self.database.check_collection_exists(collection_id)
+            except NotFoundError:
+                logger.info(f"{collection_id} collection not found. Creating minimal collection.")
+                await self.create_minimal_collection(collection_id)
+            prepped_item = await self.database.prep_create_item(self.stac_item, "")
+            logger.info(f"Prepped data: {prepped_item}")
+            await self.database.create_item(prepped_item)
+
+            # Add STAC items with asset title that matches one in POST_PROCESS_ASSET_DATA_TITLES
+            #  to the post-processing topic, if present
+            asset_data_title = self.stac_item.get("assets", {}).get("data", {}).get("title", None)
+            if self.sns_manager and asset_data_title and asset_data_title in ServiceConfig.post_processing_asset_data_titles:
+                self.sns_manager.publish_message(message=json.dumps(self.stac_item), subject=asset_data_title)
 
             # Return a success message
             return self.success_message("STAC item created successfully")
         except Exception as error:
             # Return a failure message with the stack trace
             return self.failure_message(error)
+
+    async def create_minimal_collection(self, collection_id: str) -> None:
+        collection = Collection(**get_minimal_collection_dict(collection_id))
+        await self.database.create_collection(collection)
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

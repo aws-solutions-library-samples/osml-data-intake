@@ -85,7 +85,7 @@ After setting up your environment, you can verify your setup by sending a test m
 
 2. Execute the following command, substituting your actual values:
     ```bash
-    python3 bin/stream/stream_cli.py --topic-arn <YOUR_TOPIC_ARN> --s3-uri <YOUR_S3_URI>
+    python3 bin/stream/stream_cli.py --topic-arn <YOUR_TOPIC_ARN> --s3-uri <YOUR_S3_URI> --item-id <DESIRED_ITEM_ID>
     ```
 
 3. Validate Expected Output:\

@@ -1,7 +1,9 @@
 #  Copyright 2024 Amazon.com, Inc. or its affiliates.
 
+import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict
 
 from botocore.config import Config
 
@@ -23,6 +25,18 @@ class ServiceConfig:
     aws_region: str = os.getenv("AWS_DEFAULT_REGION", "us-west-2")
     sts_arn: str = os.getenv("STS_ARN", None)
     max_conn_pool: str = os.getenv("NUMBER_OF_CONN_POOL", 500)
+    bulk_s3_uri = os.getenv("S3_URI")
+    bulk_input_path = os.getenv("S3_INPUT_PATH")
+    bulk_output_path = os.getenv("S3_OUTPUT_PATH")
+    bulk_output_bucket = os.getenv("S3_OUTPUT_BUCKET")
+    bulk_stac_endpoint = os.getenv("STAC_ENDPOINT")
+    bulk_collection_id = os.getenv("COLLECTION_ID")
+    bulk_max_workers = int(os.getenv("THREAD_WORKERS", 1))
+    bulk_enable_debugging = os.getenv("ENABLE_DEBUGGING")
+    stac_post_processing_topic: str = os.getenv("STAC_POST_PROCESSING_TOPIC_ARN", None)
+    post_processing_asset_data_titles: list = field(
+        default_factory=lambda: json.loads(os.getenv("POST_PROCESS_ASSET_DATA_TITLES", "[]"))
+    )
 
 
 @dataclass
@@ -40,3 +54,15 @@ class BotoConfig:
         retries={"max_attempts": 15, "mode": "standard"},
         max_pool_connections=int(ServiceConfig.max_conn_pool),
     )
+
+
+def get_minimal_collection_dict(collection_id: str) -> Dict:
+    return {
+        "type": "Collection",
+        "stac_version": "1.0.0",
+        "id": collection_id,
+        "description": f"{collection_id} STAC Collection",
+        "license": "",
+        "extent": {"spatial": {"bbox": [[-180.0, -90.0, 180.0, 90.0]]}, "temporal": {"interval": []}},
+        "links": [{"href": "", "rel": "self"}],
+    }
