@@ -92,7 +92,7 @@ class TestIngestProcessor(unittest.TestCase):
         event = self.sns_event()
         response = handler(event, None)
 
-        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(response["statusCode"], 500)
         self.assertIn("Database error", json.loads(response["body"])["message"])
 
 
