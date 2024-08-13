@@ -30,7 +30,7 @@ class ProcessorBase(ABC):
         Returns an error message in the form of a dictionary, including a stack trace, intended for an HTTP response.
 
         :param e: The exception that triggered the failure.
-        :returns: A dictionary with 'statusCode' set to 400 and a 'body' containing the error message and stack trace.
+        :returns: A dictionary with 'statusCode' set to 500 and a 'body' containing the error message and stack trace.
         """
         # Log the error and stack trace
         stack_trace = traceback.format_exc()
@@ -38,7 +38,7 @@ class ProcessorBase(ABC):
 
         # Return the error message and stack trace in the response
         error_response = {"message": str(e), "stack_trace": stack_trace.splitlines()}
-        return {"statusCode": 400, "body": json.dumps(error_response)}
+        return {"statusCode": 500, "body": json.dumps(error_response)}
 
     @abstractmethod
     def process(self) -> Dict[str, Any]:

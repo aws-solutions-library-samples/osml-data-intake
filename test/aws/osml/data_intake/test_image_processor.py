@@ -72,7 +72,7 @@ class TestImageProcessor(unittest.TestCase):
         response = self.processor.process()
 
         # Check the response
-        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(response["statusCode"], 500)
         self.assertIn("Unable to Load", response["body"])
 
 

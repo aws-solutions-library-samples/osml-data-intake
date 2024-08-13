@@ -25,7 +25,7 @@ class TestProcessorBase(unittest.TestCase):
 
         result_body = json.loads(result["body"])
 
-        self.assertEqual(result["statusCode"], 400)
+        self.assertEqual(result["statusCode"], 500)
         self.assertIn("message", result_body)
         self.assertIn("stack_trace", result_body)
         self.assertEqual(result_body["message"], exception_message)
