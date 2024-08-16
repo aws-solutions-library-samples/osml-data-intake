@@ -1,6 +1,6 @@
 # Copyright 2024 Amazon.com, Inc. or its affiliates.
 
-FROM public.ecr.aws/lambda/python:3.11 as intake
+FROM public.ecr.aws/lambda/python:3.11 as build
 
 # Build time arguments
 ARG BUILD_CERT=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
@@ -16,10 +16,15 @@ ARG PACKAGES="wget"
 USER root
 
 # Configure, update, and refresh yum environment
-RUN yum update -y && yum clean all && yum makecache
+RUN yum -y upgrade && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 # Install all our dependencies
 RUN yum install -y $PACKAGES
+
+# Clean up after installing $PACKAGES
+RUN rm -rf /var/cache/yum
 
 # Install Miniconda
 RUN wget -c ${MINICONDA_URL} && \
@@ -34,15 +39,28 @@ ENV PATH=/opt/conda/bin:$PATH
 # Copy conda ENV
 COPY conda/environment.yml ${LAMBDA_TASK_ROOT}
 
-# Install python with conda
-RUN conda env create -n ${CONDA_ENV_NAME} --file environment.yml
+# Install python with conda and remove additional unnecessary files
+RUN conda env create -n ${CONDA_ENV_NAME} --file environment.yml && \
+    conda clean -afy && \
+    find /opt/conda/ -follow -type f -name '*.a' -delete && \
+    find /opt/conda/ -follow -type f -name '*.pyc' -delete && \
+    find /opt/conda/ -follow -type f -name '*.js.map' -delete && \
+    rm -rf /opt/conda/pkgs
+
+# Stage 2: Runtime environment
+FROM public.ecr.aws/lambda/python:3.11 as intake
 
 # Add conda to the path
-ENV PATH=/opt/conda/envs/${CONDA_ENV_NAME}/bin/:$PATH
+ENV CONDA_ENV_NAME="osml_data_intake"
+ENV PATH=/opt/conda/bin:$PATH
 ENV PYTHONPATH=/opt/conda/envs/${CONDA_ENV_NAME}/bin
 
+# Copy the conda environment from the build stage
 # We now replace the image’s existing Python with Python from the conda environment:
-RUN mv /var/lang/bin/python3.11 /var/lang/bin/python3.11-clean && ln -sf /opt/conda/envs/${CONDA_ENV_NAME}/bin/python /var/lang/bin/python3.11
+COPY --from=build /opt/conda /opt/conda
+RUN ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh
+
+RUN rm -rf /var/lang/bin/python3.11 && ln -sf /opt/conda/envs/${CONDA_ENV_NAME}/bin/python /var/lang/bin/python3.11
 
 # Clean up any dangling conda resources
 RUN conda clean -afy
@@ -51,10 +69,10 @@ RUN conda clean -afy
 ADD . ${LAMBDA_TASK_ROOT}
 
 # Install the lambda manager into the conda python
-RUN python -m pip install awslambdaric
+RUN python3.11 -m pip install --no-cache-dir awslambdaric
 
 # Install the package into the base image
-RUN python -m pip install .
+RUN python3.11 -m pip install --no-cache-dir .
 
 # Set entry point
 CMD ["aws.osml.data_intake.image_processor.handler"]
