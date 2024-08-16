@@ -8,7 +8,7 @@ ARG PIP_INSTALL_LOCATION=https://pypi.org/simple/
 ARG MINICONDA_VERSION=Miniconda3-latest-Linux-x86_64
 ARG MINICONDA_URL=https://repo.anaconda.com/miniconda/${MINICONDA_VERSION}.sh
 ENV PATH=/opt/conda/bin:$PATH
-ENV CONDA_TARGET_ENV=osml_data_intake
+ENV CONDA_TARGET_ENV=osml_data_intake_bulk
 
 # Set working directory
 RUN mkdir -p /opt/ml/processing/input /opt/ml/processing/output
@@ -48,10 +48,10 @@ RUN . /opt/conda/etc/profile.d/conda.sh && \
     python3 -m pip install --no-cache-dir osml-data-intake/.
 
 # Stage 2: Runtime environment
-FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal as osml_data_intake
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal as osml_data_intake_bulk
 
 # Set up runtime environment variables
-ENV CONDA_TARGET_ENV=osml_data_intake
+ENV CONDA_TARGET_ENV=osml_data_intake_bulk
 ENV PATH=/opt/conda/bin:$PATH
 
 # Set working directory

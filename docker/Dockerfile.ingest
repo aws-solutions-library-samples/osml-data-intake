@@ -3,17 +3,19 @@
 FROM public.ecr.aws/lambda/python:3.11 as ingest
 
 # Install yum deps
-RUN yum -y upgrade
-RUN yum -y install gcc ca-certificates
+RUN yum -y upgrade && \
+    yum -y install gcc ca-certificates && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 # Install python deps deps
-RUN pip3 install stac_fastapi.opensearch stac_fastapi.types python-json-logger
+RUN pip3 install --no-cache-dir stac_fastapi.opensearch stac_fastapi.types python-json-logger
 
 # Copy the function code to the LAMBDA_TASK_ROOT directory
 ADD . ${LAMBDA_TASK_ROOT}
 
 # Install the package
-RUN pip3 install .
+RUN pip3 install --no-cache-dir .
 
 # Set entry point
 CMD ["aws.osml.data_intake.ingest_processor.handler"]
