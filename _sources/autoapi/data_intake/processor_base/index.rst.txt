@@ -1,0 +1,57 @@
+data_intake.processor_base
+==========================
+
+.. py:module:: data_intake.processor_base
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.processor_base.ProcessorBase
+
+
+Module Contents
+---------------
+
+.. py:class:: ProcessorBase
+
+   Bases: :py:obj:`abc.ABC`
+
+
+   A base class providing common success and failure message handling for processors.
+
+
+   .. py:method:: success_message(message: str) -> Dict[str, Any]
+      :staticmethod:
+
+
+      Returns a success message in the form of a dictionary, intended for an HTTP response.
+
+      :param message: The success message to send when complete.
+      :returns: A dictionary with 'statusCode' set to 200 and a 'body' containing a success message.
+
+
+
+   .. py:method:: failure_message(e: Exception) -> Dict[str, Any]
+      :staticmethod:
+
+
+      Returns an error message in the form of a dictionary, including a stack trace, intended for an HTTP response.
+
+      :param e: The exception that triggered the failure.
+      :returns: A dictionary with 'statusCode' set to 500 and a 'body' containing the error message and stack trace.
+
+
+
+   .. py:method:: process() -> Dict[str, Any]
+      :abstractmethod:
+
+
+      Process the incoming message. This method must be implemented by all subclasses.
+
+      :returns: A response indicating the status of the process.
+
+
+

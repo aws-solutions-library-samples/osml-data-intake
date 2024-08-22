@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aws.osml.data_intake.bulk_processor &mdash; OversightML Tile Server Test  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=fd3f3429" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            OversightML Tile Server Test
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../autoapi/index.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">OversightML Tile Server Test</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">aws.osml.data_intake.bulk_processor</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for aws.osml.data_intake.bulk_processor</h1><div class="highlight"><pre>
+<span></span><span class="c1">#  Copyright 2024 Amazon.com, Inc. or its affiliates.</span>
+
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">from</span> <span class="nn">secrets</span> <span class="kn">import</span> <span class="n">token_hex</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span> <span class="nn">boto3</span>
+<span class="kn">from</span> <span class="nn">boto3.resources.base</span> <span class="kn">import</span> <span class="n">ServiceResource</span>
+<span class="kn">from</span> <span class="nn">botocore.exceptions</span> <span class="kn">import</span> <span class="n">ClientError</span>
+<span class="kn">from</span> <span class="nn">stac_fastapi.opensearch.database_logic</span> <span class="kn">import</span> <span class="n">DatabaseLogic</span>
+<span class="kn">from</span> <span class="nn">stac_fastapi.types.errors</span> <span class="kn">import</span> <span class="n">NotFoundError</span>
+<span class="kn">from</span> <span class="nn">stac_fastapi.types.stac</span> <span class="kn">import</span> <span class="n">Collection</span><span class="p">,</span> <span class="n">Item</span>
+
+<span class="kn">from</span> <span class="nn">aws.osml.data_intake.image_processor</span> <span class="kn">import</span> <span class="n">ImageData</span>
+<span class="kn">from</span> <span class="nn">aws.osml.data_intake.managers.s3_manager</span> <span class="kn">import</span> <span class="n">S3Manager</span><span class="p">,</span> <span class="n">S3Url</span>
+<span class="kn">from</span> <span class="nn">aws.osml.data_intake.utils</span> <span class="kn">import</span> <span class="n">AsyncContextFilter</span><span class="p">,</span> <span class="n">BotoConfig</span><span class="p">,</span> <span class="n">ServiceConfig</span><span class="p">,</span> <span class="n">get_minimal_collection_dict</span><span class="p">,</span> <span class="n">logger</span>
+
+
+<div class="viewcode-block" id="BulkProcessor">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.BulkProcessor">[docs]</a>
+<span class="k">class</span> <span class="nc">BulkProcessor</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">aws_s3</span><span class="p">:</span> <span class="n">ServiceResource</span><span class="p">,</span>
+        <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">output_bucket</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">stac_endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">collection_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">input_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initializes the BulkProcessor class.</span>
+
+<span class="sd">        :param aws_s3: The AWS S3 client object.</span>
+<span class="sd">        :param output_path: The output path for storing processed data.</span>
+<span class="sd">        :param output_bucket: The output bucket for storing processed data.</span>
+<span class="sd">        :param stac_endpoint: The URL of the STAC endpoint.</span>
+<span class="sd">        :param collection_id: The ID of the STAC collection.</span>
+<span class="sd">        :param input_path: The input path for storing original data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">aws_s3</span> <span class="o">=</span> <span class="n">aws_s3</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collection_id</span> <span class="o">=</span> <span class="n">collection_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_bucket</span> <span class="o">=</span> <span class="n">output_bucket</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_path</span> <span class="o">=</span> <span class="n">input_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_path</span> <span class="o">=</span> <span class="n">output_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stac_endpoint</span> <span class="o">=</span> <span class="n">stac_endpoint</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">database</span> <span class="o">=</span> <span class="n">DatabaseLogic</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">failed_manifest_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_path</span><span class="p">,</span> <span class="s2">&quot;failed_images_manifest.json&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="BulkProcessor.generate_upload_files">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.BulkProcessor.generate_upload_files">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_upload_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">image_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">ImageData</span><span class="p">,</span> <span class="n">S3Manager</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate required files for the given image, upload generated files, and then delete</span>
+<span class="sd">        the files once uploaded.</span>
+
+<span class="sd">        :param image: Path or S3 URL of the image.</span>
+<span class="sd">        :param image_id: ID of the image.</span>
+
+<span class="sd">        :return Tuple containing ImageData and S3Manager instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">AsyncContextFilter</span><span class="o">.</span><span class="n">set_context</span><span class="p">({</span><span class="s2">&quot;image_hash&quot;</span><span class="p">:</span> <span class="n">image_id</span><span class="p">})</span>
+
+        <span class="n">s3_url</span> <span class="o">=</span> <span class="n">S3Url</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+        <span class="n">s3_manager</span> <span class="o">=</span> <span class="n">S3Manager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_bucket</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aws_s3</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">image_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># set the output folder to the id</span>
+        <span class="n">s3_manager</span><span class="o">.</span><span class="n">set_output_folder</span><span class="p">(</span><span class="n">image_id</span><span class="p">)</span>
+
+        <span class="n">local_object_path</span> <span class="o">=</span> <span class="n">s3_manager</span><span class="o">.</span><span class="n">download_file</span><span class="p">(</span><span class="n">s3_url</span><span class="p">)</span>
+        <span class="n">image_data</span> <span class="o">=</span> <span class="n">ImageData</span><span class="p">(</span><span class="n">local_object_path</span><span class="p">)</span>
+
+        <span class="n">aux_file</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_aux_file</span><span class="p">()</span>
+        <span class="n">s3_manager</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">aux_file</span><span class="p">,</span> <span class="s2">&quot;.AUX&quot;</span><span class="p">)</span>
+
+        <span class="n">ovr_file</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_ovr_file</span><span class="p">()</span>
+        <span class="n">s3_manager</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">ovr_file</span><span class="p">,</span> <span class="s2">&quot;.OVR&quot;</span><span class="p">)</span>
+
+        <span class="c1"># list files in the directory</span>
+        <span class="n">listDir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">tmp_dir</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Files in the directory (generateFiles): </span><span class="si">{</span><span class="n">listDir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Delete files then clean up dataset to preserve storage space</span>
+        <span class="n">image_data</span><span class="o">.</span><span class="n">delete_files</span><span class="p">([</span><span class="n">local_object_path</span><span class="p">,</span> <span class="n">aux_file</span><span class="p">,</span> <span class="n">ovr_file</span><span class="p">])</span>
+        <span class="n">image_data</span><span class="o">.</span><span class="n">clean_dataset</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">image_data</span><span class="p">,</span> <span class="n">s3_manager</span></div>
+
+
+<div class="viewcode-block" id="BulkProcessor.record_failed_image">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.BulkProcessor.record_failed_image">[docs]</a>
+    <span class="k">def</span> <span class="nf">record_failed_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">error_details</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Record details of failed image processing in a manifest file.</span>
+
+<span class="sd">        :param error_details: Dictionary containing details of the failed image and error.</span>
+
+<span class="sd">        :return None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">failed_manifest_path</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">manifest_file</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">error_details</span><span class="p">,</span> <span class="n">manifest_file</span><span class="p">)</span>
+                <span class="n">manifest_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed image details recorded in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">failed_manifest_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to record failed image details in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">failed_manifest_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BulkProcessor.process_image">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.BulkProcessor.process_image">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">process_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">semaphore</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Item</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process a single image</span>
+
+<span class="sd">        :param image: Path or S3 URL of the image.</span>
+<span class="sd">        :param semaphore: Semaphore for limiting concurrent workers.</span>
+
+<span class="sd">        :return STAC item if successful, None otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">semaphore</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">image_id</span> <span class="o">=</span> <span class="n">token_hex</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+                <span class="n">image_data</span><span class="p">,</span> <span class="n">s3_manager</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_upload_files</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">image_id</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Creating STAC item with ID </span><span class="si">{</span><span class="n">image_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">stac_item</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_stac_item</span><span class="p">(</span><span class="n">s3_manager</span><span class="p">,</span> <span class="n">image_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stac_endpoint</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">stac_item</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+                <span class="n">error_details</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;image&quot;</span><span class="p">:</span> <span class="n">image</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">),</span> <span class="s2">&quot;internal_traceback&quot;</span><span class="p">:</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">()}</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to process image - </span><span class="si">{</span><span class="n">error_details</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">record_failed_image</span><span class="p">(</span><span class="n">error_details</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="BulkProcessor.submit_bulk_data_catalog">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.BulkProcessor.submit_bulk_data_catalog">[docs]</a>
+    <span class="k">def</span> <span class="nf">submit_bulk_data_catalog</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stac_items</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Item</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Submit the data catalog to the STAC endpoint</span>
+
+<span class="sd">        :param collection_id: The ID of the STAC collection.</span>
+<span class="sd">        :param stac_items: List of STAC items to be submitted.</span>
+
+<span class="sd">        :return None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">AsyncContextFilter</span><span class="o">.</span><span class="n">set_context</span><span class="p">({</span><span class="s2">&quot;image_hash&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">})</span>
+            <span class="c1"># Insert the STAC Items</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">bulk_sync</span><span class="p">(</span><span class="n">collection_id</span><span class="p">,</span> <span class="n">stac_items</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Successfully bulk inserted </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">stac_items</span><span class="p">)</span><span class="si">}</span><span class="s2"> item(s) to the </span><span class="si">{</span><span class="n">collection_id</span><span class="si">}</span><span class="s2"> collection!&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to submit data catalog item... </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to submit data catalog item... </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BulkProcessor.create_minimal_collection">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.BulkProcessor.create_minimal_collection">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">create_minimal_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">collection</span> <span class="o">=</span> <span class="n">Collection</span><span class="p">(</span><span class="o">**</span><span class="n">get_minimal_collection_dict</span><span class="p">(</span><span class="n">collection_id</span><span class="p">))</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">create_collection</span><span class="p">(</span><span class="n">collection</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="start_workers">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.start_workers">[docs]</a>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">start_workers</span><span class="p">(</span><span class="n">image_batch</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">bulk_processor</span><span class="p">:</span> <span class="n">BulkProcessor</span><span class="p">,</span> <span class="n">max_workers</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Starts worker tasks to process a batch of images.</span>
+
+<span class="sd">    :param image_batch: A list of image paths or S3 URLs.</span>
+<span class="sd">    :param bulk_processor: An instance of the BulkProcessor class.</span>
+<span class="sd">    :param max_workers: The maximum number of concurrent workers.</span>
+
+<span class="sd">    :return None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">semaphore</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="n">max_workers</span><span class="p">)</span>
+    <span class="n">stac_items</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">queue</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Queue</span><span class="p">()</span>
+
+    <span class="c1"># If the collection does not exist, create a minimal one.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">bulk_processor</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">check_collection_exists</span><span class="p">(</span><span class="n">bulk_processor</span><span class="o">.</span><span class="n">collection_id</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">NotFoundError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">bulk_processor</span><span class="o">.</span><span class="n">collection_id</span><span class="si">}</span><span class="s2"> collection not found. Creating minimal collection.&quot;</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">bulk_processor</span><span class="o">.</span><span class="n">create_minimal_collection</span><span class="p">(</span><span class="n">bulk_processor</span><span class="o">.</span><span class="n">collection_id</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">worker</span><span class="p">():</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">image</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">stac_item</span> <span class="o">=</span> <span class="k">await</span> <span class="n">bulk_processor</span><span class="o">.</span><span class="n">process_image</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">semaphore</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">stac_item</span><span class="p">:</span>
+                <span class="n">stac_items</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stac_item</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">stac_items</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+                    <span class="n">bulk_processor</span><span class="o">.</span><span class="n">submit_bulk_data_catalog</span><span class="p">(</span><span class="n">bulk_processor</span><span class="o">.</span><span class="n">collection_id</span><span class="p">,</span> <span class="n">stac_items</span><span class="p">)</span>
+                    <span class="n">stac_items</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">task_done</span><span class="p">()</span>
+
+    <span class="n">workers</span> <span class="o">=</span> <span class="p">[</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">worker</span><span class="p">())</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_workers</span><span class="p">)]</span>
+
+    <span class="k">for</span> <span class="n">image</span> <span class="ow">in</span> <span class="n">image_batch</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+    <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_workers</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># Ensure all workers are stopped</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">workers</span><span class="p">)</span>
+
+    <span class="c1"># Insert any remaining items to STAC catalog</span>
+    <span class="k">if</span> <span class="n">stac_items</span><span class="p">:</span>
+        <span class="n">bulk_processor</span><span class="o">.</span><span class="n">submit_bulk_data_catalog</span><span class="p">(</span><span class="n">bulk_processor</span><span class="o">.</span><span class="n">collection_id</span><span class="p">,</span> <span class="n">stac_items</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;All images processed.&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="process_manifest_file">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.process_manifest_file">[docs]</a>
+<span class="k">def</span> <span class="nf">process_manifest_file</span><span class="p">(</span><span class="n">aws_s3</span><span class="p">:</span> <span class="n">ServiceResource</span><span class="p">,</span> <span class="n">input_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">s3_uri</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Processes a manifest file containing a list of S3 object paths.</span>
+
+<span class="sd">    :param aws_s3: The AWS S3 client object.</span>
+<span class="sd">    :param input_path: The local path where the manifest file will be downloaded.</span>
+<span class="sd">    :param s3_uri: The S3 URI of the manifest file.</span>
+
+<span class="sd">    :return: A list of S3 object paths if the manifest file exists, otherwise None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">s3_url</span> <span class="o">=</span> <span class="n">S3Url</span><span class="p">(</span><span class="n">s3_uri</span><span class="p">)</span>
+    <span class="n">local_json_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">input_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">s3_url</span><span class="o">.</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">aws_s3</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">download_file</span><span class="p">(</span><span class="n">s3_url</span><span class="o">.</span><span class="n">bucket</span><span class="p">,</span> <span class="n">s3_url</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">local_json_path</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">local_json_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">manifest_file</span><span class="p">:</span>
+        <span class="n">manifest_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">manifest_file</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">manifest_data</span><span class="p">:</span>
+            <span class="n">s3_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">manifest_data</span><span class="p">:</span>
+                <span class="n">s3_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;S3Uri&quot;</span><span class="p">])</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">s3_list</span><span class="p">)</span><span class="si">}</span><span class="s2"> files in the manifest.&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Here is the list of it: </span><span class="si">{</span><span class="n">s3_list</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">s3_list</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.bulk_processor.html#aws.osml.data_intake.bulk_processor.main">[docs]</a>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function is responsible for orchestrating the data intake process. It retrieves the necessary</span>
+<span class="sd">    environment variables, initializes the AWS S3 resource, processes the manifest file, generate</span>
+<span class="sd">    ovr/aux, create STAC item, and publish to the Database Cluster</span>
+
+<span class="sd">    :returns: None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_enable_debugging</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">aws_s3</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="s2">&quot;s3&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">BotoConfig</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">ClientError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Fatal error occurred while initializing AWS services. Exiting. </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_input_path</span><span class="p">:</span>
+        <span class="n">s3_list</span> <span class="o">=</span> <span class="n">process_manifest_file</span><span class="p">(</span><span class="n">aws_s3</span><span class="p">,</span> <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_input_path</span><span class="p">,</span> <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_s3_uri</span><span class="p">)</span>
+        <span class="n">bulk_processor</span> <span class="o">=</span> <span class="n">BulkProcessor</span><span class="p">(</span>
+            <span class="n">aws_s3</span><span class="p">,</span>
+            <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_output_path</span><span class="p">,</span>
+            <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_output_bucket</span><span class="p">,</span>
+            <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_stac_endpoint</span><span class="p">,</span>
+            <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_collection_id</span><span class="p">,</span>
+            <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_input_path</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">s3_list</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">start_workers</span><span class="p">(</span><span class="n">s3_list</span><span class="p">,</span> <span class="n">bulk_processor</span><span class="p">,</span> <span class="n">ServiceConfig</span><span class="o">.</span><span class="n">bulk_max_workers</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">bulk_processor</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;The manifest file is empty or not found.&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;The environment variable S3_INPUT_PATH is not set.&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The environment variable S3_INPUT_PATH is not set.&quot;</span><span class="p">)</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Amazon.com.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+<style>
+    .wy-nav-content { max-width: none; }
+</style>
+
+
+
+</body>
+</html>

@@ -1,0 +1,68 @@
+data_intake.ingest_processor
+============================
+
+.. py:module:: data_intake.ingest_processor
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.ingest_processor.IngestProcessor
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   data_intake.ingest_processor.handler
+
+
+Module Contents
+---------------
+
+.. py:class:: IngestProcessor(message: str)
+
+   Bases: :py:obj:`data_intake.processor_base.ProcessorBase`
+
+
+   A class to process STAC items from an SNS event source, integrated with OpenSearch
+   database logic from stac_fastapi.opensearch.database_logic.
+
+
+   .. py:attribute:: database
+
+
+   .. py:attribute:: stac_item
+
+
+   .. py:attribute:: sns_manager
+
+
+   .. py:method:: process() -> Dict[str, Any]
+      :async:
+
+
+      Process the incoming SNS message, download and process the image, and publish the results.
+
+      :returns: A response indicating the status of the process.
+      :raises Exception: Raised if there is an error during item ingestion.
+
+
+
+   .. py:method:: create_minimal_collection(collection_id: str) -> None
+      :async:
+
+
+
+.. py:function:: handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]
+
+   The AWS Lambda handler function to process an event.
+
+   :param event: The event payload contains the SNS message.
+   :param context: The Lambda execution context (unused).
+   :return: The response from the IngestProcessor process.
+
+

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aws.osml.data_intake.utils.app_config module &mdash; OversightML Tile Server Test  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=fd3f3429" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            OversightML Tile Server Test
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../autoapi/index.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">OversightML Tile Server Test</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">aws.osml.data_intake.utils.app_config module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/_apidoc/aws.osml.data_intake.utils.app_config.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-aws.osml.data_intake.utils.app_config">
+<span id="aws-osml-data-intake-utils-app-config-module"></span><h1>aws.osml.data_intake.utils.app_config module<a class="headerlink" href="#module-aws.osml.data_intake.utils.app_config" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">aws.osml.data_intake.utils.app_config.</span></span><span class="sig-name descname"><span class="pre">ServiceConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aws_region:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'us-west-2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sts_arn:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_conn_pool:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stac_post_processing_topic:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_processing_asset_data_titles:</span> <span class="pre">list</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aws/osml/data_intake/utils/app_config.html#ServiceConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>ServiceConfig is a dataclass meant to house the high-level configuration settings required for Data Intake Bulk to
+operate that are provided through ENV variables. Note that required env parameters are enforced by the implied
+schema validation as os.environ[] is used to fetch the values. Optional parameters are fetched using, os.getenv(),
+which returns None.</p>
+<p>The data schema is defined as follows:
+aws_region:  (str) The AWS region where the Bulk Ingest is deployed.
+sts_arn: (str) The ARN of the STS role to assume for running the Bulk Ingest.
+max_conn_pool: (int) The maximum number of connections to maintain in the connection pool.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.aws_region">
+<span class="sig-name descname"><span class="pre">aws_region</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'us-west-2'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.aws_region" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.sts_arn">
+<span class="sig-name descname"><span class="pre">sts_arn</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.sts_arn" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.max_conn_pool">
+<span class="sig-name descname"><span class="pre">max_conn_pool</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">500</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.max_conn_pool" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_s3_uri">
+<span class="sig-name descname"><span class="pre">bulk_s3_uri</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'s3://test-bucket/manifest.json'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_s3_uri" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_input_path">
+<span class="sig-name descname"><span class="pre">bulk_input_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'./test/data'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_input_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_output_path">
+<span class="sig-name descname"><span class="pre">bulk_output_path</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'./test/data'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_output_path" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_output_bucket">
+<span class="sig-name descname"><span class="pre">bulk_output_bucket</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'test-bucket'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_output_bucket" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_stac_endpoint">
+<span class="sig-name descname"><span class="pre">bulk_stac_endpoint</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'https://test-stac-endpoint.com'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_stac_endpoint" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_collection_id">
+<span class="sig-name descname"><span class="pre">bulk_collection_id</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'test-collection'</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_collection_id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_max_workers">
+<span class="sig-name descname"><span class="pre">bulk_max_workers</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_max_workers" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_enable_debugging">
+<span class="sig-name descname"><span class="pre">bulk_enable_debugging</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.bulk_enable_debugging" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.stac_post_processing_topic">
+<span class="sig-name descname"><span class="pre">stac_post_processing_topic</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.stac_post_processing_topic" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.ServiceConfig.post_processing_asset_data_titles">
+<span class="sig-name descname"><span class="pre">post_processing_asset_data_titles</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.ServiceConfig.post_processing_asset_data_titles" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.BotoConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">aws.osml.data_intake.utils.app_config.</span></span><span class="sig-name descname"><span class="pre">BotoConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">default:</span> <span class="pre">~botocore.config.Config</span> <span class="pre">=</span> <span class="pre">&lt;botocore.config.Config</span> <span class="pre">object&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/aws/osml/data_intake/utils/app_config.html#BotoConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.BotoConfig" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="simple">
+<dt>BotoConfig is a dataclass meant to vend our application the set of boto client configurations required for</dt><dd><p>Data Intake Bulk</p>
+</dd>
+</dl>
+<p>The data schema is defined as follows:
+default:  (Config) the standard boto client configuration</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.BotoConfig.default">
+<span class="sig-name descname"><span class="pre">default</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Config</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;botocore.config.Config</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.BotoConfig.default" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="aws.osml.data_intake.utils.app_config.get_minimal_collection_dict">
+<span class="sig-prename descclassname"><span class="pre">aws.osml.data_intake.utils.app_config.</span></span><span class="sig-name descname"><span class="pre">get_minimal_collection_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">collection_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a></span></span><a class="reference internal" href="../_modules/aws/osml/data_intake/utils/app_config.html#get_minimal_collection_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#aws.osml.data_intake.utils.app_config.get_minimal_collection_dict" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Amazon.com.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+<style>
+    .wy-nav-content { max-width: none; }
+</style>
+
+
+
+</body>
+</html>

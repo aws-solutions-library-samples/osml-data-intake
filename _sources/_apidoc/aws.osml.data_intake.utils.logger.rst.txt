@@ -1,0 +1,7 @@
+aws.osml.data\_intake.utils.logger module
+=========================================
+
+.. automodule:: aws.osml.data_intake.utils.logger
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,55 @@
+data_intake.managers.sns_manager
+================================
+
+.. py:module:: data_intake.managers.sns_manager
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.managers.sns_manager.SNSRequest
+   data_intake.managers.sns_manager.SNSManager
+
+
+Module Contents
+---------------
+
+.. py:class:: SNSRequest
+
+   .. py:attribute:: image_uri
+      :type:  str
+
+
+   .. py:attribute:: item_id
+      :type:  str
+
+
+   .. py:attribute:: collection_id
+      :type:  str
+
+
+.. py:class:: SNSManager(output_topic: str)
+
+   A helper class to manage interactions with AWS SNS.
+
+   :param output_topic: The ARN of the SNS topic where messages are published.
+
+
+   .. py:attribute:: sns_client
+
+
+   .. py:attribute:: output_topic
+
+
+   .. py:method:: publish_message(message: str, subject: str = 'New STAC Item') -> None
+
+      Publish a message to the configured SNS topic.
+
+      :param message: The STAC Item as a string to be published.
+      :param subject: The subject of the message.
+      :raises ClientError: If publishing to SNS fails.
+
+
+

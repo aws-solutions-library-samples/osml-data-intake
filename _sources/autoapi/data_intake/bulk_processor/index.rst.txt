@@ -1,0 +1,139 @@
+data_intake.bulk_processor
+==========================
+
+.. py:module:: data_intake.bulk_processor
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.bulk_processor.BulkProcessor
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   data_intake.bulk_processor.start_workers
+   data_intake.bulk_processor.process_manifest_file
+   data_intake.bulk_processor.main
+
+
+Module Contents
+---------------
+
+.. py:class:: BulkProcessor(aws_s3: boto3.resources.base.ServiceResource, output_path: str, output_bucket: str, stac_endpoint: str, collection_id: str, input_path: str)
+
+   .. py:attribute:: aws_s3
+
+
+   .. py:attribute:: collection_id
+
+
+   .. py:attribute:: output_bucket
+
+
+   .. py:attribute:: input_path
+
+
+   .. py:attribute:: output_path
+
+
+   .. py:attribute:: stac_endpoint
+
+
+   .. py:attribute:: database
+
+
+   .. py:attribute:: failed_manifest_path
+
+
+   .. py:method:: generate_upload_files(image: str, image_id: str) -> Tuple[aws.osml.data_intake.image_processor.ImageData, aws.osml.data_intake.managers.s3_manager.S3Manager]
+
+      Generate required files for the given image, upload generated files, and then delete
+      the files once uploaded.
+
+      :param image: Path or S3 URL of the image.
+      :param image_id: ID of the image.
+
+      :return Tuple containing ImageData and S3Manager instance.
+
+
+
+   .. py:method:: record_failed_image(error_details: dict) -> None
+
+      Record details of failed image processing in a manifest file.
+
+      :param error_details: Dictionary containing details of the failed image and error.
+
+      :return None
+
+
+
+   .. py:method:: process_image(image: str, semaphore: asyncio.Semaphore) -> Optional[stac_fastapi.types.stac.Item]
+      :async:
+
+
+      Process a single image
+
+      :param image: Path or S3 URL of the image.
+      :param semaphore: Semaphore for limiting concurrent workers.
+
+      :return STAC item if successful, None otherwise.
+
+
+
+   .. py:method:: submit_bulk_data_catalog(collection_id: str, stac_items: List[stac_fastapi.types.stac.Item]) -> None
+
+      Submit the data catalog to the STAC endpoint
+
+      :param collection_id: The ID of the STAC collection.
+      :param stac_items: List of STAC items to be submitted.
+
+      :return None
+
+
+
+   .. py:method:: create_minimal_collection(collection_id: str) -> None
+      :async:
+
+
+
+.. py:function:: start_workers(image_batch: List[str], bulk_processor: BulkProcessor, max_workers: int) -> None
+   :async:
+
+
+   Starts worker tasks to process a batch of images.
+
+   :param image_batch: A list of image paths or S3 URLs.
+   :param bulk_processor: An instance of the BulkProcessor class.
+   :param max_workers: The maximum number of concurrent workers.
+
+   :return None
+
+
+.. py:function:: process_manifest_file(aws_s3: boto3.resources.base.ServiceResource, input_path: str, s3_uri: str) -> Optional[List[str]]
+
+   Processes a manifest file containing a list of S3 object paths.
+
+   :param aws_s3: The AWS S3 client object.
+   :param input_path: The local path where the manifest file will be downloaded.
+   :param s3_uri: The S3 URI of the manifest file.
+
+   :return: A list of S3 object paths if the manifest file exists, otherwise None.
+
+
+.. py:function:: main() -> None
+   :async:
+
+
+   This function is responsible for orchestrating the data intake process. It retrieves the necessary
+   environment variables, initializes the AWS S3 resource, processes the manifest file, generate
+   ovr/aux, create STAC item, and publish to the Database Cluster
+
+   :returns: None
+
+

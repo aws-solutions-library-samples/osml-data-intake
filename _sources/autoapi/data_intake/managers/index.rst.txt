@@ -1,0 +1,193 @@
+data_intake.managers
+====================
+
+.. py:module:: data_intake.managers
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/data_intake/managers/s3_manager/index
+   /autoapi/data_intake/managers/sns_manager/index
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.managers.S3Manager
+   data_intake.managers.S3Url
+   data_intake.managers.SNSManager
+   data_intake.managers.SNSRequest
+
+
+Package Contents
+----------------
+
+.. py:class:: S3Manager(output_bucket: str, aws_s3: boto3.resources.base.ServiceResource = None, input_dir: str = '/tmp/images')
+
+   A class to manage S3 file downloads and uploads.
+
+   :param output_bucket: The name of the S3 bucket used for uploads.
+   :returns: None
+
+
+   .. py:attribute:: output_bucket
+
+
+   .. py:attribute:: s3_client
+
+
+   .. py:attribute:: tmp_dir
+
+
+   .. py:attribute:: s3_url
+      :type:  Optional[S3Url]
+      :value: None
+
+
+
+   .. py:attribute:: output_folder
+      :value: None
+
+
+
+   .. py:method:: set_output_folder(output_folder: str) -> None
+
+      Set the output folder for the S3Manager
+
+      :param output_folder: The name of the output folder.
+      :return: None
+
+
+
+   .. py:method:: download_file(s3_url: S3Url) -> str
+
+      Download the object from S3 to the local `/tmp` directory.
+
+      :param s3_url: An object representing the S3 bucket and key for the source data.
+
+      :return: the path to the downloaded imagery file
+
+      :raises Exception: If any other error occurs during the download process.
+
+
+
+   .. py:method:: upload_file(file_path: str, file_type: str, upload_args=None) -> None
+
+      Upload the specified file to the configured S3 bucket.
+
+      :param file_path: The path to the file on the local system.
+      :param file_type: The type of file being uploaded (for logging purposes).
+      :param upload_args: Optional arguments for boto3 ExtraArgs
+      :raises ClientError: If uploading to S3 fails.
+
+
+
+   .. py:method:: strip(file_path: str) -> str
+      :staticmethod:
+
+
+      Extracts the base file name from a given file path.
+
+      :param file_path: The path of the file as a string.
+      :returns: The base file name.
+
+
+
+.. py:class:: S3Url(url: str)
+
+   A class to parse and represent an S3 URL.
+
+   :param url: The S3 URL to be parsed.
+
+
+   .. py:attribute:: _parsed
+
+
+   .. py:property:: bucket
+      :type: str
+
+      Get the bucket name from the parsed URL.
+
+      :return: The bucket name.
+
+
+
+   .. py:property:: key
+      :type: str
+
+      Get the object key from the parsed URL.
+
+      :return: The object key.
+
+
+
+   .. py:property:: url
+      :type: str
+
+      Get the full URL as a string.
+
+      :return: The full URL.
+
+
+
+   .. py:property:: prefix
+      :type: str
+
+      Get the prefix (directory path) from the S3 key, excluding the file name and extension.
+
+      :return: The prefix.
+
+
+
+   .. py:property:: filename
+      :type: str
+
+      Get the filename with extension from the S3 key.
+
+      :return: The filename with extension.
+
+
+
+.. py:class:: SNSManager(output_topic: str)
+
+   A helper class to manage interactions with AWS SNS.
+
+   :param output_topic: The ARN of the SNS topic where messages are published.
+
+
+   .. py:attribute:: sns_client
+
+
+   .. py:attribute:: output_topic
+
+
+   .. py:method:: publish_message(message: str, subject: str = 'New STAC Item') -> None
+
+      Publish a message to the configured SNS topic.
+
+      :param message: The STAC Item as a string to be published.
+      :param subject: The subject of the message.
+      :raises ClientError: If publishing to SNS fails.
+
+
+
+.. py:class:: SNSRequest
+
+   .. py:attribute:: image_uri
+      :type:  str
+
+
+   .. py:attribute:: item_id
+      :type:  str
+
+
+   .. py:attribute:: collection_id
+      :type:  str
+
+

@@ -1,0 +1,7 @@
+aws.osml.data\_intake.image\_processor module
+=============================================
+
+.. automodule:: aws.osml.data_intake.image_processor
+   :members:
+   :undoc-members:
+   :show-inheritance:

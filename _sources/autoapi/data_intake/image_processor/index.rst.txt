@@ -1,0 +1,210 @@
+data_intake.image_processor
+===========================
+
+.. py:module:: data_intake.image_processor
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   data_intake.image_processor.ImageData
+   data_intake.image_processor.ImageProcessor
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   data_intake.image_processor.handler
+
+
+Module Contents
+---------------
+
+.. py:class:: ImageData(source_file: str)
+
+   .. py:attribute:: source_file
+
+
+   .. py:attribute:: dataset
+      :type:  Optional[osgeo.gdal.Dataset]
+      :value: None
+
+
+
+   .. py:attribute:: sensor_model
+      :type:  Optional[aws.osml.photogrammetry.sensor_model.SensorModel]
+      :value: None
+
+
+
+   .. py:attribute:: geo_polygon
+      :type:  Optional[List[List[List[float]]]]
+      :value: None
+
+
+
+   .. py:attribute:: geo_bbox
+      :type:  Optional[tuple[float | int, float | int, float | int, float | int] | tuple[float | int, float | int, float | int, float | int, float | int, float | int]]
+      :value: None
+
+
+
+   .. py:attribute:: width
+      :type:  Optional[int]
+      :value: None
+
+
+
+   .. py:attribute:: height
+      :type:  Optional[int]
+      :value: None
+
+
+
+   .. py:attribute:: image_corners
+      :type:  Optional[List[List[float]]]
+      :value: None
+
+
+
+   .. py:attribute:: aux_ext
+      :value: '.aux.xml'
+
+
+
+   .. py:attribute:: gdalinfo_ext
+      :value: '.gdalinfo.json'
+
+
+
+   .. py:attribute:: overview_ext
+      :value: '.ovr'
+
+
+
+   .. py:method:: generate_metadata() -> None
+
+      Calculate image metadata and build auxiliary files like .ovr and .aux.
+      :returns: None
+
+
+
+   .. py:method:: calculate_geo_polygon() -> None
+
+      Calculates geographic coordinates from the given image corners as a polygon
+          https://geojson.org/geojson-spec.html
+
+      :returns: None
+
+
+
+   .. py:method:: calculate_bbox() -> None
+
+      Calculate the bounding box (bbox) for a GeoJSON polygon.
+
+      :returns: None
+      Example of polygon format:
+      polygon = [[
+          [100.0, 0.0],    # First vertex
+          [101.0, 0.0],    # Second vertex
+          [101.0, 1.0],    # Third vertex
+          [100.0, 1.0],    # Fourth vertex
+          [100.0, 0.0]     # Closing vertex (same as first vertex)
+      ]]
+
+
+
+   .. py:method:: generate_ovr_file(preview_size: int = 1024) -> str
+
+      Generates an .ovr overview file using the given dataset.
+
+      :param preview_size: The size of the preview to be generated.
+      :returns: Path to the generated overview file.
+
+
+
+   .. py:method:: generate_aux_file() -> str
+
+      Generates an .aux file for the given dataset.
+
+      :returns: Path to the generated aux.xml file.
+
+
+
+   .. py:method:: generate_gdalinfo() -> str
+
+      Writes the full gdalinfo report to a text file.
+
+      :returns: The path the GDAL info file
+
+
+
+   .. py:method:: generate_stac_item(s3_manager: data_intake.managers.S3Manager, item_id: str, collection_id: str, stac_catalog: str = '') -> stac_fastapi.types.stac.Item
+
+      Create and publish a STAC item using the configured SNS manager.
+
+      :param: s3_manager: The s3 manager handling the source file.
+      :param: collection_id: The ID of the STAC Item.
+      :param: collection_id: The collection_id to place the STAC Item in.
+      :param: stac_catalog: The catalog the item is intended for.
+      :returns: The generated STAC item.
+      :raises ClientError: If publishing to SNS fails.
+
+
+
+   .. py:method:: clean_dataset() -> None
+
+      Cleans up the dataset GDAL creates.
+
+      :returns: None
+
+
+
+   .. py:method:: delete_files(files: List) -> None
+
+      Cleans up the leftover files
+      :returns: None
+
+
+
+.. py:class:: ImageProcessor(message: str)
+
+   Bases: :py:obj:`data_intake.processor_base.ProcessorBase`
+
+
+   Manages the entire image processing workflow in a serverless environment.
+
+   :param message: The incoming SNS request message.
+
+
+   .. py:attribute:: s3_manager
+
+
+   .. py:attribute:: sns_manager
+
+
+   .. py:attribute:: sns_request
+
+
+   .. py:method:: process() -> Dict[str, Any]
+
+      Process the incoming SNS message, download and process the image, and publish the results.
+
+      :returns: A response indicating the status of the process.
+      :raises Exception: Raised if there is an error during processing incoming image.
+
+
+
+.. py:function:: handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]
+
+   The AWS Lambda handler function to process an event.
+
+   :param event: The event payload contains the SNS message.
+   :param context: The Lambda execution context (unused).
+   :return: The response from the ImageProcessor process.
+
+

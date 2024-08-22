@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aws.osml.data_intake.image_processor &mdash; OversightML Tile Server Test  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=fd3f3429" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            OversightML Tile Server Test
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../autoapi/index.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">OversightML Tile Server Test</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">aws.osml.data_intake.image_processor</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for aws.osml.data_intake.image_processor</h1><div class="highlight"><pre>
+<span></span><span class="c1">#  Copyright 2024 Amazon.com, Inc. or its affiliates.</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">ceil</span><span class="p">,</span> <span class="n">degrees</span><span class="p">,</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">from</span> <span class="nn">osgeo</span> <span class="kn">import</span> <span class="n">gdal</span>
+<span class="kn">from</span> <span class="nn">stac_fastapi.types.stac</span> <span class="kn">import</span> <span class="n">Item</span>
+
+<span class="kn">from</span> <span class="nn">aws.osml.gdal.gdal_utils</span> <span class="kn">import</span> <span class="n">load_gdal_dataset</span>
+<span class="kn">from</span> <span class="nn">aws.osml.photogrammetry.coordinates</span> <span class="kn">import</span> <span class="n">ImageCoordinate</span>
+<span class="kn">from</span> <span class="nn">aws.osml.photogrammetry.sensor_model</span> <span class="kn">import</span> <span class="n">SensorModel</span>
+
+<span class="kn">from</span> <span class="nn">.managers</span> <span class="kn">import</span> <span class="n">S3Manager</span><span class="p">,</span> <span class="n">S3Url</span><span class="p">,</span> <span class="n">SNSManager</span><span class="p">,</span> <span class="n">SNSRequest</span>
+<span class="kn">from</span> <span class="nn">.processor_base</span> <span class="kn">import</span> <span class="n">ProcessorBase</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">logger</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;PROJ_LIB&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;/opt/conda/envs/osml_data_intake/share/proj&quot;</span>
+
+<span class="n">gdal</span><span class="o">.</span><span class="n">UseExceptions</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="ImageData">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageData</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the ImageData object.</span>
+
+<span class="sd">        :param source_file: The source image file path.</span>
+<span class="sd">        :returns: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_file</span> <span class="o">=</span> <span class="n">source_file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">gdal</span><span class="o">.</span><span class="n">Dataset</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sensor_model</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SensorModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo_polygon</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo_bbox</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span>
+            <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span>
+            <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span>
+        <span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">height</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image_corners</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generate_metadata</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">aux_ext</span> <span class="o">=</span> <span class="s2">&quot;.aux.xml&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gdalinfo_ext</span> <span class="o">=</span> <span class="s2">&quot;.gdalinfo.json&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">overview_ext</span> <span class="o">=</span> <span class="s2">&quot;.ovr&quot;</span>
+
+<div class="viewcode-block" id="ImageData.generate_metadata">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.generate_metadata">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate image metadata and build auxiliary files like .ovr and .aux.</span>
+<span class="sd">        :returns: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Calculating metadata for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">source_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Load the gdal dataset and sensor model for image</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sensor_model</span> <span class="o">=</span> <span class="n">load_gdal_dataset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_file</span><span class="p">)</span>
+
+        <span class="c1"># Grab the width and height of the image</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">height</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">RasterXSize</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">RasterYSize</span>
+
+        <span class="c1"># Calculate the image corners to work with</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image_corners</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">height</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">height</span><span class="p">]]</span>
+
+        <span class="c1"># Calculate geographic coordinates for the polygon</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_geo_polygon</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_bbox</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="ImageData.calculate_geo_polygon">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.calculate_geo_polygon">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_geo_polygon</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates geographic coordinates from the given image corners as a polygon</span>
+<span class="sd">            https://geojson.org/geojson-spec.html</span>
+
+<span class="sd">        :returns: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">corner</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_corners</span><span class="p">:</span>
+            <span class="n">world_coordinate</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sensor_model</span><span class="o">.</span><span class="n">image_to_world</span><span class="p">(</span><span class="n">ImageCoordinate</span><span class="p">(</span><span class="n">corner</span><span class="p">))</span>
+            <span class="n">coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">degrees</span><span class="p">(</span><span class="n">world_coordinate</span><span class="o">.</span><span class="n">longitude</span><span class="p">),</span> <span class="n">degrees</span><span class="p">(</span><span class="n">world_coordinate</span><span class="o">.</span><span class="n">latitude</span><span class="p">)))</span>
+        <span class="n">coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coordinates</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo_polygon</span> <span class="o">=</span> <span class="p">[</span><span class="n">coordinates</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="ImageData.calculate_bbox">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.calculate_bbox">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_bbox</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the bounding box (bbox) for a GeoJSON polygon.</span>
+
+<span class="sd">        :returns: None</span>
+<span class="sd">        Example of polygon format:</span>
+<span class="sd">        polygon = [[</span>
+<span class="sd">            [100.0, 0.0],    # First vertex</span>
+<span class="sd">            [101.0, 0.0],    # Second vertex</span>
+<span class="sd">            [101.0, 1.0],    # Third vertex</span>
+<span class="sd">            [100.0, 1.0],    # Fourth vertex</span>
+<span class="sd">            [100.0, 0.0]     # Closing vertex (same as first vertex)</span>
+<span class="sd">        ]]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo_polygon</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">min_lon</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">coords</span><span class="p">)</span>
+        <span class="n">min_lat</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">coords</span><span class="p">)</span>
+        <span class="n">max_lon</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">coords</span><span class="p">)</span>
+        <span class="n">max_lat</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">coords</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo_bbox</span> <span class="o">=</span> <span class="p">[</span><span class="n">min_lon</span><span class="p">,</span> <span class="n">min_lat</span><span class="p">,</span> <span class="n">max_lon</span><span class="p">,</span> <span class="n">max_lat</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="ImageData.generate_ovr_file">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.generate_ovr_file">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_ovr_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">preview_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates an .ovr overview file using the given dataset.</span>
+
+<span class="sd">        :param preview_size: The size of the preview to be generated.</span>
+<span class="sd">        :returns: Path to the generated overview file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ovr_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_file</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">overview_ext</span>
+
+        <span class="n">existing_overviews</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">GetRasterBand</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">GetOverviewCount</span><span class="p">()</span>
+
+        <span class="n">new_full_path</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">existing_overviews</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Existing internal overviews found.&quot;</span><span class="p">)</span>
+            <span class="n">directory_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_file</span><span class="p">)</span>
+            <span class="n">full_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_file</span><span class="p">)</span>
+
+            <span class="n">new_filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">full_filename</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">_translated</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">full_filename</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">new_full_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">directory_path</span><span class="p">,</span> <span class="n">new_filename</span><span class="p">)</span>
+            <span class="n">gdal</span><span class="o">.</span><span class="n">Translate</span><span class="p">(</span><span class="n">new_full_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">overviewLevel</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">min_side</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">height</span><span class="p">)</span>
+        <span class="n">num_overviews</span> <span class="o">=</span> <span class="n">ceil</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">min_side</span> <span class="o">/</span> <span class="n">preview_size</span><span class="p">)</span> <span class="o">/</span> <span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+        <span class="n">overviews</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="o">**</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_overviews</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span> <span class="k">if</span> <span class="n">num_overviews</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="n">overviews</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">new_full_path</span><span class="p">:</span>
+                <span class="n">new_dataset</span><span class="p">,</span> <span class="n">new_sensor_model</span> <span class="o">=</span> <span class="n">load_gdal_dataset</span><span class="p">(</span><span class="n">new_full_path</span><span class="p">)</span>
+                <span class="n">ovr_file</span> <span class="o">=</span> <span class="n">new_full_path</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">overview_ext</span>
+                <span class="n">new_dataset</span><span class="o">.</span><span class="n">BuildOverviews</span><span class="p">(</span><span class="s2">&quot;AVERAGE&quot;</span><span class="p">,</span> <span class="n">overviews</span><span class="p">)</span>
+                <span class="c1"># Clean up</span>
+                <span class="n">new_dataset</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">BuildOverviews</span><span class="p">(</span><span class="s2">&quot;AVERAGE&quot;</span><span class="p">,</span> <span class="n">overviews</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated external overview file </span><span class="si">{</span><span class="n">ovr_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No overviews to generate.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ovr_file</span></div>
+
+
+<div class="viewcode-block" id="ImageData.generate_aux_file">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.generate_aux_file">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_aux_file</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates an .aux file for the given dataset.</span>
+
+<span class="sd">        :returns: Path to the generated aux.xml file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">gdal</span><span class="o">.</span><span class="n">SetConfigOption</span><span class="p">(</span><span class="s2">&quot;GDAL_PAM_ENABLED&quot;</span><span class="p">,</span> <span class="s2">&quot;YES&quot;</span><span class="p">)</span>
+        <span class="n">aux_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_file</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">aux_ext</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Calculating image statistics for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">source_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">temp_ds</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_file</span><span class="p">)</span>
+        <span class="n">gdal</span><span class="o">.</span><span class="n">Info</span><span class="p">(</span><span class="n">temp_ds</span><span class="p">,</span> <span class="n">stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">approxStats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">computeMinMax</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">reportHistograms</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">del</span> <span class="n">temp_ds</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated aux file, </span><span class="si">{</span><span class="n">aux_file</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">end_time</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start_time</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">aux_file</span></div>
+
+
+<div class="viewcode-block" id="ImageData.generate_gdalinfo">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.generate_gdalinfo">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_gdalinfo</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Writes the full gdalinfo report to a text file.</span>
+
+<span class="sd">        :returns: The path the GDAL info file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">info_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_file</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdalinfo_ext</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Writing gdalinfo report to </span><span class="si">{</span><span class="n">info_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">info_file</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">options</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">InfoOptions</span><span class="p">(</span><span class="n">stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">reportHistograms</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;json&quot;</span><span class="p">)</span>
+            <span class="n">gdal_info_report</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">gdal</span><span class="o">.</span><span class="n">Info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">))</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">gdal_info_report</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gdalinfo report written to </span><span class="si">{</span><span class="n">info_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">info_file</span></div>
+
+
+<div class="viewcode-block" id="ImageData.generate_stac_item">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.generate_stac_item">[docs]</a>
+    <span class="k">def</span> <span class="nf">generate_stac_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s3_manager</span><span class="p">:</span> <span class="n">S3Manager</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">collection_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stac_catalog</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Item</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create and publish a STAC item using the configured SNS manager.</span>
+
+<span class="sd">        :param: s3_manager: The s3 manager handling the source file.</span>
+<span class="sd">        :param: collection_id: The ID of the STAC Item.</span>
+<span class="sd">        :param: collection_id: The collection_id to place the STAC Item in.</span>
+<span class="sd">        :param: stac_catalog: The catalog the item is intended for.</span>
+<span class="sd">        :returns: The generated STAC item.</span>
+<span class="sd">        :raises ClientError: If publishing to SNS fails.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating STAC item.&quot;</span><span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">s3_manager</span><span class="o">.</span><span class="n">s3_url</span><span class="o">.</span><span class="n">key</span>
+        <span class="k">return</span> <span class="n">Item</span><span class="p">(</span>
+            <span class="o">**</span><span class="p">{</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">item_id</span><span class="p">,</span>
+                <span class="s2">&quot;collection&quot;</span><span class="p">:</span> <span class="n">collection_id</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;Feature&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;geometry&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;Polygon&quot;</span><span class="p">,</span> <span class="s2">&quot;coordinates&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo_polygon</span><span class="p">},</span>
+                <span class="s2">&quot;bbox&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">geo_bbox</span><span class="p">,</span>
+                <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;datetime&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;+00:00&quot;</span><span class="p">,</span> <span class="s2">&quot;Z&quot;</span><span class="p">),</span>
+                    <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;STAC Item for image </span><span class="si">{</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">s3_url</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;assets&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;href&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;s3://</span><span class="si">{</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">s3_url</span><span class="o">.</span><span class="n">bucket</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Source Image&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;image/tiff&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;roles&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">],</span>
+                    <span class="p">},</span>
+                    <span class="s2">&quot;aux&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;href&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;s3://</span><span class="si">{</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">output_bucket</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">key</span><span class="si">}{</span><span class="bp">self</span><span class="o">.</span><span class="n">aux_ext</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Processed Auxiliary&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;application/xml&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;roles&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">],</span>
+                    <span class="p">},</span>
+                    <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;href&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;s3://</span><span class="si">{</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">output_bucket</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">key</span><span class="si">}{</span><span class="bp">self</span><span class="o">.</span><span class="n">gdalinfo_ext</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;GDAL Info&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;roles&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">],</span>
+                    <span class="p">},</span>
+                    <span class="s2">&quot;ovr&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;href&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;s3://</span><span class="si">{</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">output_bucket</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">key</span><span class="si">}{</span><span class="bp">self</span><span class="o">.</span><span class="n">overview_ext</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Processed Overview&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;application/octet-stream&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;roles&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">],</span>
+                    <span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;links&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;href&quot;</span><span class="p">:</span> <span class="n">stac_catalog</span><span class="p">,</span> <span class="s2">&quot;rel&quot;</span><span class="p">:</span> <span class="s2">&quot;self&quot;</span><span class="p">}],</span>
+                <span class="s2">&quot;stac_version&quot;</span><span class="p">:</span> <span class="s2">&quot;1.0.0&quot;</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ImageData.clean_dataset">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.clean_dataset">[docs]</a>
+    <span class="k">def</span> <span class="nf">clean_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Cleans up the dataset GDAL creates.</span>
+
+<span class="sd">        :returns: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="ImageData.delete_files">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageData.delete_files">[docs]</a>
+    <span class="k">def</span> <span class="nf">delete_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">files</span><span class="p">:</span> <span class="n">List</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Cleans up the leftover files</span>
+<span class="sd">        :returns: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unable to delete the file, </span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">, error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">continue</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ImageProcessor">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageProcessor">[docs]</a>
+<span class="k">class</span> <span class="nc">ImageProcessor</span><span class="p">(</span><span class="n">ProcessorBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Manages the entire image processing workflow in a serverless environment.</span>
+
+<span class="sd">    :param message: The incoming SNS request message.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an ImageProcessor instance.</span>
+
+<span class="sd">        :param message: The incoming SNS request message.</span>
+<span class="sd">        :returns: None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span> <span class="o">=</span> <span class="n">S3Manager</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;OUTPUT_BUCKET&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sns_manager</span> <span class="o">=</span> <span class="n">SNSManager</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;OUTPUT_TOPIC&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sns_request</span> <span class="o">=</span> <span class="n">SNSRequest</span><span class="p">(</span><span class="o">**</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">message</span><span class="p">))</span>
+
+<div class="viewcode-block" id="ImageProcessor.process">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.ImageProcessor.process">[docs]</a>
+    <span class="k">def</span> <span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process the incoming SNS message, download and process the image, and publish the results.</span>
+
+<span class="sd">        :returns: A response indicating the status of the process.</span>
+<span class="sd">        :raises Exception: Raised if there is an error during processing incoming image.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Extract the S3 information from the URI</span>
+            <span class="n">s3_url</span> <span class="o">=</span> <span class="n">S3Url</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sns_request</span><span class="o">.</span><span class="n">image_uri</span><span class="p">)</span>
+
+            <span class="c1"># Download the source image</span>
+            <span class="n">file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">download_file</span><span class="p">(</span><span class="n">s3_url</span><span class="p">)</span>
+
+            <span class="c1"># Create the image metadata files</span>
+            <span class="n">image_data</span> <span class="o">=</span> <span class="n">ImageData</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+
+            <span class="c1"># Generate info, aux, and ovr files</span>
+            <span class="n">info_file</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_gdalinfo</span><span class="p">()</span>
+            <span class="n">aux_file</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_aux_file</span><span class="p">()</span>
+            <span class="n">ovr_file</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_ovr_file</span><span class="p">()</span>
+
+            <span class="c1"># set the output folder to the item id</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">set_output_folder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sns_request</span><span class="o">.</span><span class="n">item_id</span><span class="p">)</span>
+
+            <span class="c1"># upload info, aux, ovr files file</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">info_file</span><span class="p">,</span> <span class="s2">&quot;GDAL INFO&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;ContentType&quot;</span><span class="p">:</span> <span class="s2">&quot;application/json&quot;</span><span class="p">})</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">aux_file</span><span class="p">,</span> <span class="s2">&quot;AUX&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;ContentType&quot;</span><span class="p">:</span> <span class="s2">&quot;application/xml&quot;</span><span class="p">})</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">ovr_file</span><span class="p">,</span> <span class="s2">&quot;OVR&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;ContentType&quot;</span><span class="p">:</span> <span class="s2">&quot;image/tiff&quot;</span><span class="p">})</span>
+
+            <span class="c1"># Generate and publish the STAC item to the SNS topic</span>
+            <span class="n">stac_item</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">generate_stac_item</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">s3_manager</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sns_request</span><span class="o">.</span><span class="n">item_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sns_request</span><span class="o">.</span><span class="n">collection_id</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sns_manager</span><span class="o">.</span><span class="n">publish_message</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">stac_item</span><span class="p">))</span>
+
+            <span class="c1"># Clean up the GDAL dataset</span>
+            <span class="n">image_data</span><span class="o">.</span><span class="n">clean_dataset</span><span class="p">()</span>
+
+            <span class="c1"># Return a response indicating success</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">success_message</span><span class="p">(</span><span class="s2">&quot;Message processed successfully&quot;</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="c1"># Return a response indicating failure</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">failure_message</span><span class="p">(</span><span class="n">err</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="handler">
+<a class="viewcode-back" href="../../../../_apidoc/aws.osml.data_intake.image_processor.html#aws.osml.data_intake.image_processor.handler">[docs]</a>
+<span class="k">def</span> <span class="nf">handler</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">context</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The AWS Lambda handler function to process an event.</span>
+
+<span class="sd">    :param event: The event payload contains the SNS message.</span>
+<span class="sd">    :param context: The Lambda execution context (unused).</span>
+<span class="sd">    :return: The response from the ImageProcessor process.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Log the event payload to see the raw SNS message</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">&quot;Records&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;Sns&quot;</span><span class="p">][</span><span class="s2">&quot;Message&quot;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">ImageProcessor</span><span class="p">(</span><span class="n">message</span><span class="p">)</span><span class="o">.</span><span class="n">process</span><span class="p">()</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Amazon.com.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+<style>
+    .wy-nav-content { max-width: none; }
+</style>
+
+
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+aws.osml.data\_intake.managers package
+======================================
+
+.. automodule:: aws.osml.data_intake.managers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   aws.osml.data_intake.managers.s3_manager
+   aws.osml.data_intake.managers.sns_manager

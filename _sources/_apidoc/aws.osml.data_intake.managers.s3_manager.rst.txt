@@ -1,0 +1,7 @@
+aws.osml.data\_intake.managers.s3\_manager module
+=================================================
+
+.. automodule:: aws.osml.data_intake.managers.s3_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
