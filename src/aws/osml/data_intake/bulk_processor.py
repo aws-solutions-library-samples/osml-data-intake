@@ -61,7 +61,7 @@ class BulkProcessor:
         :return Tuple containing ImageData and S3Manager instance.
         """
 
-        AsyncContextFilter.set_context({"image_hash": image_id})
+        AsyncContextFilter.set_context({"item_id": image_id})
 
         s3_url = S3Url(image)
         s3_manager = S3Manager(self.output_bucket, self.aws_s3, f"{self.input_path}/{image_id}")

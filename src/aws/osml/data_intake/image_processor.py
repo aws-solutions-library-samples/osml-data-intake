@@ -16,7 +16,7 @@ from aws.osml.photogrammetry.sensor_model import SensorModel
 
 from .managers import S3Manager, S3Url, SNSManager, SNSRequest
 from .processor_base import ProcessorBase
-from .utils import logger
+from .utils import AsyncContextFilter, logger
 
 os.environ["PROJ_LIB"] = "/opt/conda/envs/osml_data_intake/share/proj"
 
@@ -103,7 +103,7 @@ class ImageData:
 
         self.geo_bbox = [min_lon, min_lat, max_lon, max_lat]
 
-    def generate_ovr_file(self, preview_size: int = 1024) -> str:
+    def generate_ovr_file(self, preview_size: int = 1024) -> Optional[str]:
         """
         Generates an .ovr overview file using the given dataset.
 
@@ -139,10 +139,10 @@ class ImageData:
             else:
                 self.dataset.BuildOverviews("AVERAGE", overviews)
             logger.info(f"Generated external overview file {ovr_file}")
+            return ovr_file
         else:
             logger.info("No overviews to generate.")
-
-        return ovr_file
+            return None
 
     def generate_aux_file(self) -> str:
         """
@@ -178,7 +178,9 @@ class ImageData:
 
         return info_file
 
-    def generate_stac_item(self, s3_manager: S3Manager, item_id: str, collection_id: str, stac_catalog: str = "") -> Item:
+    def generate_stac_item(
+        self, s3_manager: S3Manager, item_id: str, collection_id: str, ovr_file, stac_catalog: str = ""
+    ) -> Item:
         """
         Create and publish a STAC item using the configured SNS manager.
 
@@ -191,6 +193,44 @@ class ImageData:
         """
         logger.info("Creating STAC item.")
         key = s3_manager.s3_url.key
+        assets = {
+            "overview": {
+                "href": "https://cu99me9cj3.execute-api.us-west-2.amazonaws.com/viewpoints",
+                "title": "Image Overview",
+                "type": "application/geotiff",
+                "roles": ["overview"],
+                "item_id": item_id,
+                "collection_id": collection_id,
+                "s3_uri": f"s3://{s3_manager.s3_url.bucket}/{key}",
+                "tile_size": 512,
+                "range_adjustment": "DRA",
+            },
+            "data": {
+                "href": f"s3://{s3_manager.s3_url.bucket}/{key}",
+                "title": "Source Image",
+                "type": "image/tiff",
+                "roles": ["data"],
+            },
+            "aux": {
+                "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.aux_ext}",
+                "title": "Processed Auxiliary",
+                "type": "application/xml",
+                "roles": ["data"],
+            },
+            "info": {
+                "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.gdalinfo_ext}",
+                "title": "GDAL Info",
+                "type": "application/json",
+                "roles": ["data"],
+            },
+        }
+        if ovr_file:
+            assets["ovr"] = {
+                "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.overview_ext}",
+                "title": "Processed Overview",
+                "type": "application/octet-stream",
+                "roles": ["data"],
+            }
         return Item(
             **{
                 "id": item_id,
@@ -202,32 +242,7 @@ class ImageData:
                     "datetime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     "description": f"STAC Item for image {s3_manager.s3_url.url}",
                 },
-                "assets": {
-                    "data": {
-                        "href": f"s3://{s3_manager.s3_url.bucket}/{key}",
-                        "title": "Source Image",
-                        "type": "image/tiff",
-                        "roles": ["data"],
-                    },
-                    "aux": {
-                        "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.aux_ext}",
-                        "title": "Processed Auxiliary",
-                        "type": "application/xml",
-                        "roles": ["data"],
-                    },
-                    "info": {
-                        "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.gdalinfo_ext}",
-                        "title": "GDAL Info",
-                        "type": "application/json",
-                        "roles": ["data"],
-                    },
-                    "ovr": {
-                        "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.overview_ext}",
-                        "title": "Processed Overview",
-                        "type": "application/octet-stream",
-                        "roles": ["data"],
-                    },
-                },
+                "assets": assets,
                 "links": [{"href": stac_catalog, "rel": "self"}],
                 "stac_version": "1.0.0",
             }
@@ -280,6 +295,7 @@ class ImageProcessor(ProcessorBase):
         :raises Exception: Raised if there is an error during processing incoming image.
         """
         try:
+            AsyncContextFilter.set_context({"item_id": self.sns_request.item_id})
             # Extract the S3 information from the URI
             s3_url = S3Url(self.sns_request.image_uri)
 
@@ -300,11 +316,12 @@ class ImageProcessor(ProcessorBase):
             # upload info, aux, ovr files file
             self.s3_manager.upload_file(info_file, "GDAL INFO", {"ContentType": "application/json"})
             self.s3_manager.upload_file(aux_file, "AUX", {"ContentType": "application/xml"})
-            self.s3_manager.upload_file(ovr_file, "OVR", {"ContentType": "image/tiff"})
+            if ovr_file:
+                self.s3_manager.upload_file(ovr_file, "OVR", {"ContentType": "image/tiff"})
 
             # Generate and publish the STAC item to the SNS topic
             stac_item = image_data.generate_stac_item(
-                self.s3_manager, self.sns_request.item_id, self.sns_request.collection_id
+                self.s3_manager, self.sns_request.item_id, self.sns_request.collection_id, ovr_file
             )
             self.sns_manager.publish_message(json.dumps(stac_item))
 
