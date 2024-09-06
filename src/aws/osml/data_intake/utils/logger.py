@@ -98,8 +98,8 @@ def get_logger(name: str = __name__, level: int = logging.INFO) -> logging.Logge
     return lambda_logger
 
 
-formatter = JsonFormatter(fmt="%(asctime)s %(name)s %(levelname)s %(image_hash)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S")
+formatter = JsonFormatter(fmt="%(asctime)s %(name)s %(levelname)s %(item_id)s %(message)s", datefmt="%Y-%m-%dT%H:%M:%S")
 
-filter = AsyncContextFilter(attribute_names=["image_hash"])
+filter = AsyncContextFilter(attribute_names=["item_id"])
 
 logger = configure_logger(logger=get_logger(), log_level=logging.INFO, log_formatter=formatter, log_filter=filter)

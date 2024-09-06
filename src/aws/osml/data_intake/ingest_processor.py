@@ -10,7 +10,7 @@ from stac_fastapi.types.stac import Collection, Item
 
 from .managers import SNSManager
 from .processor_base import ProcessorBase
-from .utils import ServiceConfig, get_minimal_collection_dict, logger
+from .utils import AsyncContextFilter, ServiceConfig, get_minimal_collection_dict, logger
 
 
 class IngestProcessor(ProcessorBase):
@@ -41,8 +41,9 @@ class IngestProcessor(ProcessorBase):
         try:
             # Here we assume 'item' includes necessary fields like 'id'
             item_id = self.stac_item["id"]
+            AsyncContextFilter.set_context({"item_id": item_id})
             collection_id = self.stac_item["collection"]
-            logger.info(f"Creating STAC item with ID {item_id} in collection {collection_id}.")
+            logger.info(f"Creating STAC item in collection {collection_id}.")
 
             # Create a STAC item in the open search database.
             #  If the item collection does not exist, create a minimal one and then insert the item.
