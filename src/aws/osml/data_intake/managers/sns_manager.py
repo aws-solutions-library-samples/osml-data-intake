@@ -1,6 +1,7 @@
 #  Copyright 2023-2024 Amazon.com, Inc. or its affiliates.
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -13,6 +14,7 @@ class SNSRequest:
     image_uri: str
     item_id: str
     collection_id: str = field(default="OSML")
+    tile_server_url: Optional[str] = None
 
 
 class SNSManager:

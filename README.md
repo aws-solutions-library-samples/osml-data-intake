@@ -81,9 +81,12 @@ After setting up your environment, you can verify your setup by sending a test m
 
 1. Replace the following with your specific details: \
   **Topic ARN**: Update the `--topic-arn` argument with the ARN of the SNS topic that triggers your application.\
-  **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the bucket or image file you want to test.
+  **S3 URL**: Replace the S3 URL in the `--message` argument with the URL of the bucket or image file you want to test.\
+  **Item ID**: Required `item-id` parameter that sets the ID of the item.\
+  **Collection ID**: Optional `--collection-id` parameter that also adds a collection ID to the item.  Defaults to `OSML`.\
+  **Tile Server URL**: Optional `--tile-server-url` parameter for the URL to an OSML Tile Server, which will facilitate map tile creation.
 
-2. Execute the following command, substituting your actual values:
+2. An example command demonstrating the required parameters, substituting your actual values:
     ```bash
     python3 bin/stream/stream_cli.py --topic-arn <YOUR_TOPIC_ARN> --s3-uri <YOUR_S3_URI> --item-id <DESIRED_ITEM_ID>
     ```

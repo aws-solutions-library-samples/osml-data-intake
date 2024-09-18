@@ -46,6 +46,8 @@ class ImageData:
         self.aux_ext = ".aux.xml"
         self.gdalinfo_ext = ".gdalinfo.json"
         self.overview_ext = ".ovr"
+        self.viewpoint_tile_size = 512
+        self.viewpoint_range_adjustment = "DRA"
 
     def generate_metadata(self) -> None:
         """
@@ -178,15 +180,13 @@ class ImageData:
 
         return info_file
 
-    def generate_stac_item(
-        self, s3_manager: S3Manager, item_id: str, collection_id: str, ovr_file, stac_catalog: str = ""
-    ) -> Item:
+    def generate_stac_item(self, s3_manager: S3Manager, request: SNSRequest, ovr_file, stac_catalog: str = "") -> Item:
         """
         Create and publish a STAC item using the configured SNS manager.
 
         :param: s3_manager: The s3 manager handling the source file.
-        :param: collection_id: The ID of the STAC Item.
-        :param: collection_id: The collection_id to place the STAC Item in.
+        :param: request: The SNSRequest used to derive a STAC Item
+        :param: ovr_file: The overview file created by GDAL, but may not always be present for small images.
         :param: stac_catalog: The catalog the item is intended for.
         :returns: The generated STAC item.
         :raises ClientError: If publishing to SNS fails.
@@ -194,17 +194,6 @@ class ImageData:
         logger.info("Creating STAC item.")
         key = s3_manager.s3_url.key
         assets = {
-            "overview": {
-                "href": "https://cu99me9cj3.execute-api.us-west-2.amazonaws.com/viewpoints",
-                "title": "Image Overview",
-                "type": "application/geotiff",
-                "roles": ["overview"],
-                "item_id": item_id,
-                "collection_id": collection_id,
-                "s3_uri": f"s3://{s3_manager.s3_url.bucket}/{key}",
-                "tile_size": 512,
-                "range_adjustment": "DRA",
-            },
             "data": {
                 "href": f"s3://{s3_manager.s3_url.bucket}/{key}",
                 "title": "Source Image",
@@ -212,29 +201,41 @@ class ImageData:
                 "roles": ["data"],
             },
             "aux": {
-                "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.aux_ext}",
+                "href": f"s3://{s3_manager.output_bucket}/{request.item_id}/{key}{self.aux_ext}",
                 "title": "Processed Auxiliary",
                 "type": "application/xml",
                 "roles": ["data"],
             },
             "info": {
-                "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.gdalinfo_ext}",
+                "href": f"s3://{s3_manager.output_bucket}/{request.item_id}/{key}{self.gdalinfo_ext}",
                 "title": "GDAL Info",
                 "type": "application/json",
                 "roles": ["data"],
             },
         }
+        if request.tile_server_url:
+            assets["overview"] = {
+                "href": request.tile_server_url,
+                "title": "Image Overview",
+                "type": "application/geotiff",
+                "roles": ["overview"],
+                "item_id": request.item_id,
+                "collection_id": request.collection_id,
+                "s3_uri": f"s3://{s3_manager.s3_url.bucket}/{key}",
+                "tile_size": self.viewpoint_tile_size,
+                "range_adjustment": self.viewpoint_range_adjustment,
+            }
         if ovr_file:
             assets["ovr"] = {
-                "href": f"s3://{s3_manager.output_bucket}/{item_id}/{key}{self.overview_ext}",
+                "href": f"s3://{s3_manager.output_bucket}/{request.item_id}/{key}{self.overview_ext}",
                 "title": "Processed Overview",
                 "type": "application/octet-stream",
                 "roles": ["data"],
             }
         return Item(
             **{
-                "id": item_id,
-                "collection": collection_id,
+                "id": request.item_id,
+                "collection": request.collection_id,
                 "type": "Feature",
                 "geometry": {"type": "Polygon", "coordinates": self.geo_polygon},
                 "bbox": self.geo_bbox,
@@ -320,9 +321,7 @@ class ImageProcessor(ProcessorBase):
                 self.s3_manager.upload_file(ovr_file, "OVR", {"ContentType": "image/tiff"})
 
             # Generate and publish the STAC item to the SNS topic
-            stac_item = image_data.generate_stac_item(
-                self.s3_manager, self.sns_request.item_id, self.sns_request.collection_id, ovr_file
-            )
+            stac_item = image_data.generate_stac_item(self.s3_manager, self.sns_request, ovr_file)
             self.sns_manager.publish_message(json.dumps(stac_item))
 
             # Clean up the GDAL dataset
